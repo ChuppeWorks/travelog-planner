@@ -33,6 +33,10 @@ items by 20 minutes" without destroying the user's original intent.
 - Dates use `YYYY-MM-DD`.
 - Instants use ISO 8601 with an offset or `Z`.
 - Each schedule also stores an IANA timezone.
+- Date-free local times, including place opening and closing times, use
+  24-hour `HH:mm`. Canonical processing uses structured `openingPeriods`;
+  `openingHoursText` exists only for display and legacy compatibility. A
+  closing time at or before its opening time represents an overnight period.
 - Coordinates use decimal WGS84 latitude and longitude.
 - Provider-specific IDs are references, never canonical identity.
 

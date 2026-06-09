@@ -47,9 +47,10 @@
   border-radius: 50%;
   content: "";
   height: 10px;
-  left: -23px;
+  left: -17px;
   position: absolute;
   top: 14px;
+  transform: translateX(-50%);
   width: 10px;
 }
 
@@ -79,4 +80,12 @@
   color: var(--text-muted);
   padding: 24px 0;
   text-align: center;
+}
+
+.travelog-upsell h2 {
+  margin-bottom: 12px;
+}
+
+.travelog-upsell p {
+  line-height: 1.55;
 }

@@ -59,6 +59,36 @@
       },
       "additionalProperties": true
     },
+    "localTime": {
+      "type": "string",
+      "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+    },
+    "openingPeriod": {
+      "type": "object",
+      "required": ["dayOfWeek", "opens", "closes"],
+      "properties": {
+        "dayOfWeek": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "opens": { "$ref": "#/$defs/localTime" },
+        "closes": { "$ref": "#/$defs/localTime" }
+      },
+      "additionalProperties": true
+    },
+    "place": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "customName": { "type": "string" },
+        "address": { "type": "string" },
+        "openingPeriods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/openingPeriod" }
+        },
+        "openingHoursText": { "type": "string" },
+        "expectedDurationMinutes": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
     "route": {
       "type": "object",
       "required": ["mode"],
@@ -117,7 +147,7 @@
         "sortOrder": { "type": "number" },
         "title": { "type": "string" },
         "schedule": { "$ref": "#/$defs/schedule" },
-        "place": { "type": "object", "additionalProperties": true },
+        "place": { "$ref": "#/$defs/place" },
         "route": { "$ref": "#/$defs/route" },
         "notes": { "type": "string" },
         "tags": { "type": "array", "items": { "type": "string" } },

@@ -34,6 +34,11 @@ Use `blueprint.json` as the complete contract. Important conversions:
 - Keep all canonical ID properties as **Text**.
 - Use Timeline `Name` as the user's custom display name and `Place name` as
   the searchable canonical place name.
+- Enter Timeline `Opens` and `Closes` as 24-hour local times in exact `HH:mm`
+  format, such as `09:30`. Both must be filled or both left blank. Notion has
+  no date-free time property, so these remain text properties; Travelog import
+  rejects malformed or incomplete pairs and stores them as structured
+  `openingPeriods`.
 - Keep provider references and change snapshots as **Text** containing JSON.
 - Keep `Travelog JSON` as **Text** and hide it from normal views. It preserves
   fields that Notion cannot display and enables lossless future import.
@@ -76,7 +81,7 @@ Create these database templates inside Notion:
 
 - **New Trip:** status Planning, base currency set, embedded linked views of
   Days, Timeline, Checklist, and Expenses filtered to the trip.
-- **New Point:** kind Point, blank address/coordinates/opening hours.
+- **New Point:** kind Point, blank address/coordinates/Opens/Closes.
 - **New Route:** kind Route, blank endpoint IDs and line.
 - **Trip packing item:** phase Before.
 - **Reservation document:** kind Booking.

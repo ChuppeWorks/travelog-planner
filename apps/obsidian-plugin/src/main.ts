@@ -25,20 +25,33 @@ import {
   zonedLocalToIso,
   type TimelineItem,
   type TransportMode,
+  type OpeningPeriod,
+  type ScheduleWarning,
   type TravelDay,
   type TravelogDataset,
   type Trip,
 } from "../../../packages/schema/src";
 import { datasetToNotionTables, NOTION_TABLE_FILES } from "../../../packages/interchange/src";
+import {
+  LANGUAGE_OPTIONS,
+  isRtlLanguage,
+  translate,
+  type LanguageSetting,
+  type TranslationKey,
+} from "./i18n";
 
 const VIEW_TYPE = "travelog-planner-view";
 
 interface TravelogSettings {
   dataPath: string;
+  language: LanguageSetting;
+  travelogWebAppUrl: string;
 }
 
 const DEFAULT_SETTINGS: TravelogSettings = {
   dataPath: "Travelog/travelog.json",
+  language: "auto",
+  travelogWebAppUrl: "",
 };
 
 export default class TravelogPlannerPlugin extends Plugin {
@@ -51,20 +64,20 @@ export default class TravelogPlannerPlugin extends Plugin {
     await this.store.load();
 
     this.registerView(VIEW_TYPE, (leaf) => new TravelogPlannerView(leaf, this));
-    this.addRibbonIcon("map", "Open Travelog Planner", () => void this.activateView());
+    this.addRibbonIcon("map", this.t("app.name"), () => void this.activateView());
     this.addCommand({
       id: "open-planner",
-      name: "Open planner",
+      name: this.t("command.open"),
       callback: () => void this.activateView(),
     });
     this.addCommand({
       id: "create-trip",
-      name: "Create trip",
+      name: this.t("command.createTrip"),
       callback: () => new CreateTripModal(this.app, this).open(),
     });
     this.addCommand({
       id: "export-notion-csv",
-      name: "Export Notion CSV files",
+      name: this.t("command.exportNotion"),
       callback: () => void this.exportNotionCsv(),
     });
     this.addSettingTab(new TravelogSettingTab(this.app, this));
@@ -93,6 +106,21 @@ export default class TravelogPlannerPlugin extends Plugin {
     await this.refreshViews();
   }
 
+  t(key: TranslationKey, values: Record<string, string | number> = {}): string {
+    return translate(this.settings.language, key, values, globalThis.navigator?.language ?? "en");
+  }
+
+  applyDirection(element: HTMLElement): void {
+    element.setAttr(
+      "dir",
+      isRtlLanguage(this.settings.language, globalThis.navigator?.language ?? "en") ? "rtl" : "ltr",
+    );
+  }
+
+  openUpsell(feature: "map" | "transit", context: UpsellContext = {}): void {
+    new TravelogUpsellModal(this.app, this, feature, context).open();
+  }
+
   async exportNotionCsv(): Promise<void> {
     const parent = normalizePath(this.settings.dataPath).split("/").slice(0, -1).join("/");
     const directory = normalizePath(`${parent || "Travelog"}/notion-export`);
@@ -101,8 +129,14 @@ export default class TravelogPlannerPlugin extends Plugin {
     for (const [table, filename] of Object.entries(NOTION_TABLE_FILES)) {
       await this.app.vault.adapter.write(`${directory}/${filename}`, tables[table as keyof typeof tables]);
     }
-    new Notice(`Exported Notion CSV files to ${directory}.`);
+    new Notice(this.t("notice.exported", { directory }));
   }
+}
+
+interface UpsellContext {
+  tripId?: string;
+  dayId?: string;
+  route?: TimelineItem;
 }
 
 class TravelogStore {
@@ -158,7 +192,7 @@ class TravelogPlannerView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Travelog Planner";
+    return this.plugin.t("app.name");
   }
 
   getIcon(): string {
@@ -173,18 +207,19 @@ class TravelogPlannerView extends ItemView {
     const container = this.containerEl.children[1] as HTMLElement;
     container.empty();
     container.addClass("travelog-planner");
+    this.plugin.applyDirection(container);
 
     const dataset = this.plugin.store.dataset;
     this.normalizeSelection(dataset);
 
     const header = container.createDiv({ cls: "travelog-planner__header" });
-    header.createEl("h2", { text: "Travelog Planner" });
-    this.button(header, "New trip", () => new CreateTripModal(this.app, this.plugin).open());
+    header.createEl("h2", { text: this.plugin.t("app.name") });
+    this.button(header, this.plugin.t("button.newTrip"), () => new CreateTripModal(this.app, this.plugin).open());
 
     if (!dataset.trips.length) {
       container.createDiv({
         cls: "travelog-planner__empty",
-        text: "Create a trip to start building a point-and-route timeline.",
+        text: this.plugin.t("empty.noTrips"),
       });
       return;
     }
@@ -214,11 +249,11 @@ class TravelogPlannerView extends ItemView {
     );
 
     const toolbar = container.createDiv({ cls: "travelog-planner__toolbar" });
-    this.button(toolbar, "Add point", () => this.openItemModal("point"));
-    this.button(toolbar, "Add route", () => this.openItemModal("route"));
-    this.button(toolbar, "Open day map", () => this.openDayMap());
-    this.button(toolbar, "Freeze baseline", () => void this.freezeBaseline());
-    this.button(toolbar, "Export Notion CSV", () => void this.plugin.exportNotionCsv());
+    this.button(toolbar, this.plugin.t("button.addPoint"), () => this.openItemModal("point"));
+    this.button(toolbar, this.plugin.t("button.addRoute"), () => this.openItemModal("route"));
+    this.button(toolbar, this.plugin.t("button.viewMap"), () => this.openDayMap());
+    this.button(toolbar, this.plugin.t("button.freezeBaseline"), () => void this.freezeBaseline());
+    this.button(toolbar, this.plugin.t("button.exportNotion"), () => void this.plugin.exportNotionCsv());
 
     const dayItems = dataset.timelineItems.filter((item) => item.dayId === this.selectedDayId);
     const pointCount = dayItems.filter((item) => item.kind === "point").length;
@@ -236,15 +271,19 @@ class TravelogPlannerView extends ItemView {
       .join(" + ");
     container.createDiv({
       cls: "travelog-planner__muted",
-      text: `${pointCount} point${pointCount === 1 ? "" : "s"} · ${routeCount} route${routeCount === 1 ? "" : "s"}${totals ? ` · Planned ${totals}` : ""}`,
+      text: this.plugin.t("summary.counts", {
+        points: pointCount,
+        routes: routeCount,
+        planned: totals ? this.plugin.t("summary.planned", { totals }) : "",
+      }),
     });
 
     const warnings = scheduleWarnings(dataset, this.selectedDayId!);
     if (warnings.length) {
       const warningBox = container.createDiv({ cls: "travelog-planner__warnings" });
-      warningBox.createEl("strong", { text: `${warnings.length} schedule warning${warnings.length === 1 ? "" : "s"}` });
+      warningBox.createEl("strong", { text: this.plugin.t("warning.count", { count: warnings.length }) });
       const list = warningBox.createEl("ul");
-      for (const warning of warnings) list.createEl("li", { text: warning.message });
+      for (const warning of warnings) list.createEl("li", { text: localizedWarning(this.plugin, dataset, warning) });
     }
 
     const timeline = container.createDiv({ cls: "travelog-planner__timeline" });
@@ -252,7 +291,7 @@ class TravelogPlannerView extends ItemView {
       .filter((item) => item.dayId === this.selectedDayId)
       .sort(compareTimelineItems);
     if (!items.length) {
-      timeline.createDiv({ cls: "travelog-planner__empty", text: "No points or routes on this day yet." });
+      timeline.createDiv({ cls: "travelog-planner__empty", text: this.plugin.t("empty.noItems") });
       return;
     }
     for (const item of items) this.renderItem(timeline, item);
@@ -264,11 +303,19 @@ class TravelogPlannerView extends ItemView {
     });
     const header = card.createDiv({ cls: "travelog-planner__item-header" });
     header.createEl("strong", { text: item.title });
-    header.createSpan({ cls: "travelog-planner__kind", text: item.kind === "point" ? "POINT" : "ROUTE" });
+    header.createSpan({
+      cls: "travelog-planner__kind",
+      text: this.plugin.t(item.kind === "point" ? "item.pointKind" : "item.routeKind"),
+    });
 
-    card.createDiv({ text: formatWindow(item.schedule.current) });
+    card.createDiv({ text: formatWindow(item.schedule.current, this.plugin.t("item.unscheduled")) });
     if (item.schedule.baseline) {
-      card.createDiv({ cls: "travelog-planner__muted", text: `Baseline: ${formatWindow(item.schedule.baseline)}` });
+      card.createDiv({
+        cls: "travelog-planner__muted",
+        text: this.plugin.t("item.baseline", {
+          window: formatWindow(item.schedule.baseline, this.plugin.t("item.unscheduled")),
+        }),
+      });
     }
     if (item.kind === "point") {
       const detail = [item.place.address, item.place.openingHoursText].filter(Boolean).join(" | ");
@@ -280,7 +327,7 @@ class TravelogPlannerView extends ItemView {
         });
       }
       const mapLink = card.createEl("a", {
-        text: item.place.coordinates ? "Open coordinates in Google Maps" : "Search in Google Maps",
+        text: this.plugin.t(item.place.coordinates ? "button.openCoordinates" : "button.searchMaps"),
         href: item.place.coordinates
           ? `https://www.google.com/maps/search/?api=1&query=${item.place.coordinates.latitude},${item.place.coordinates.longitude}`
           : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.place.address ?? item.place.name)}`,
@@ -290,12 +337,18 @@ class TravelogPlannerView extends ItemView {
       const detail = [item.route.mode, item.route.lineName, item.route.operator].filter(Boolean).join(" | ");
       card.createDiv({ cls: "travelog-planner__muted", text: detail });
       if (item.route.delayMinutes) {
-        card.createDiv({ cls: "travelog-planner__muted", text: `Delay: ${item.route.delayMinutes} minutes` });
+        card.createDiv({
+          cls: "travelog-planner__muted",
+          text: this.plugin.t("item.delay", { minutes: item.route.delayMinutes }),
+        });
       }
       if (item.route.fare) {
         card.createDiv({
           cls: "travelog-planner__muted",
-          text: `Fare: ${item.route.fare.amount} ${item.route.fare.currency}`,
+          text: this.plugin.t("item.fare", {
+            amount: item.route.fare.amount,
+            currency: item.route.fare.currency,
+          }),
         });
       }
     }
@@ -320,16 +373,23 @@ class TravelogPlannerView extends ItemView {
     if (expenses.length) {
       card.createDiv({
         cls: "travelog-planner__muted",
-        text: `Planned cost: ${expenses.map((expense) => `${expense.amount} ${expense.currency}`).join(" + ")}`,
+        text: this.plugin.t("item.plannedCost", {
+          costs: expenses.map((expense) => `${expense.amount} ${expense.currency}`).join(" + "),
+        }),
       });
     }
 
     const actions = card.createDiv({ cls: "travelog-planner__item-actions" });
-    this.button(actions, "-15m onward", () => void this.shift(item.id, -15));
-    this.button(actions, "+15m onward", () => void this.shift(item.id, 15));
-    if (item.kind === "route") this.button(actions, "Apply +15m delay", () => void this.delayRoute(item.id, 15));
-    this.button(actions, "Edit", () => new EditItemModal(this.app, this.plugin, item).open());
-    this.button(actions, "Delete", () => void this.deleteItem(item.id));
+    this.button(actions, this.plugin.t("button.shiftBack"), () => void this.shift(item.id, -15));
+    this.button(actions, this.plugin.t("button.shiftForward"), () => void this.shift(item.id, 15));
+    if (item.kind === "route") {
+      this.button(actions, this.plugin.t("button.applyDelay"), () => void this.delayRoute(item.id, 15));
+      this.button(actions, this.plugin.t("button.findTransit"), () =>
+        this.plugin.openUpsell("transit", { tripId: item.tripId, dayId: item.dayId, route: item }),
+      );
+    }
+    this.button(actions, this.plugin.t("button.edit"), () => new EditItemModal(this.app, this.plugin, item).open());
+    this.button(actions, this.plugin.t("button.delete"), () => void this.deleteItem(item.id));
   }
 
   private openItemModal(kind: "point" | "route"): void {
@@ -340,44 +400,30 @@ class TravelogPlannerView extends ItemView {
   }
 
   private openDayMap(): void {
-    const points = this.plugin.store.dataset.timelineItems
-      .filter((item) => item.dayId === this.selectedDayId && item.kind === "point")
-      .sort(compareTimelineItems)
-      .map((item) =>
-        item.kind === "point" && item.place.coordinates
-          ? `${item.place.coordinates.latitude},${item.place.coordinates.longitude}`
-          : item.kind === "point" ? item.place.address ?? item.place.name : "",
-      )
-      .filter(Boolean);
-    if (!points.length) {
-      new Notice("Add at least one point before opening the day map.");
-      return;
-    }
-    const url =
-      points.length === 1
-        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(points[0]!)}`
-        : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(points[0]!)}&destination=${encodeURIComponent(points.at(-1)!)}&waypoints=${encodeURIComponent(points.slice(1, -1).join("|"))}`;
-    window.open(url, "_blank");
+    this.plugin.openUpsell("map", {
+      ...(this.selectedTripId ? { tripId: this.selectedTripId } : {}),
+      ...(this.selectedDayId ? { dayId: this.selectedDayId } : {}),
+    });
   }
 
   private async freezeBaseline(): Promise<void> {
     const count = freezeTripBaseline(this.plugin.store.dataset, this.selectedTripId!);
     await this.plugin.store.save();
-    new Notice(`Frozen baseline for ${count} timeline item${count === 1 ? "" : "s"}.`);
+    new Notice(this.plugin.t("notice.baselineFrozen", { count }));
     await this.plugin.refreshViews();
   }
 
   private async shift(itemId: string, minutes: number): Promise<void> {
     const count = shiftItemAndFollowing(this.plugin.store.dataset, itemId, minutes);
     await this.plugin.store.save();
-    new Notice(`Shifted ${count} item${count === 1 ? "" : "s"} by ${minutes} minutes.`);
+    new Notice(this.plugin.t("notice.shifted", { count, minutes }));
     await this.plugin.refreshViews();
   }
 
   private async delayRoute(itemId: string, minutes: number): Promise<void> {
     const count = applyRouteDelay(this.plugin.store.dataset, itemId, minutes);
     await this.plugin.store.save();
-    new Notice(`Applied ${minutes}-minute delay and shifted ${count} item${count === 1 ? "" : "s"}.`);
+    new Notice(this.plugin.t("notice.delayApplied", { count, minutes }));
     await this.plugin.refreshViews();
   }
 
@@ -445,16 +491,41 @@ class CreateTripModal extends Modal {
   }
 
   onOpen(): void {
-    this.contentEl.createEl("h2", { text: "Create trip" });
-    textSetting(this.contentEl, "Name", "", (value) => (this.name = value));
-    textSetting(this.contentEl, "Start date", this.startDate, (value) => (this.startDate = value), "date");
-    textSetting(this.contentEl, "End date", this.endDate, (value) => (this.endDate = value), "date");
-    textSetting(this.contentEl, "Timezone", this.timeZone, (value) => (this.timeZone = value));
-    textSetting(this.contentEl, "Base currency", this.baseCurrency, (value) => (this.baseCurrency = value.toUpperCase()));
-    textSetting(this.contentEl, "Destinations", "", (value) => (this.destinations = value), "text", "Comma-separated");
+    this.plugin.applyDirection(this.contentEl);
+    this.contentEl.createEl("h2", { text: this.plugin.t("modal.createTrip") });
+    textSetting(this.contentEl, this.plugin.t("field.name"), "", (value) => (this.name = value));
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.startDate"),
+      this.startDate,
+      (value) => (this.startDate = value),
+      "date",
+    );
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.endDate"),
+      this.endDate,
+      (value) => (this.endDate = value),
+      "date",
+    );
+    textSetting(this.contentEl, this.plugin.t("field.timeZone"), this.timeZone, (value) => (this.timeZone = value));
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.baseCurrency"),
+      this.baseCurrency,
+      (value) => (this.baseCurrency = value.toUpperCase()),
+    );
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.destinations"),
+      "",
+      (value) => (this.destinations = value),
+      "text",
+      this.plugin.t("desc.destinations"),
+    );
     new Setting(this.contentEl).addButton((button) =>
       button
-        .setButtonText("Create")
+        .setButtonText(this.plugin.t("button.create"))
         .setCta()
         .onClick(() => void this.submit()),
     );
@@ -462,7 +533,7 @@ class CreateTripModal extends Modal {
 
   private async submit(): Promise<void> {
     if (!this.name.trim() || !validDateRange(this.startDate, this.endDate) || !validTimeZone(this.timeZone)) {
-      new Notice("Enter a trip name, valid date range, and valid IANA timezone.");
+      new Notice(this.plugin.t("notice.invalidTrip"));
       return;
     }
     const dataset = this.plugin.store.dataset;
@@ -495,7 +566,8 @@ class CreateItemModal extends Modal {
   private address = "";
   private latitude = "";
   private longitude = "";
-  private openingHours = "";
+  private opens = "";
+  private closes = "";
   private mode: TransportMode = "walk";
   private lineName = "";
   private operator = "";
@@ -516,45 +588,77 @@ class CreateItemModal extends Modal {
   }
 
   onOpen(): void {
-    this.contentEl.createEl("h2", { text: `Add ${this.kind}` });
-    textSetting(this.contentEl, "Title", "", (value) => (this.title = value));
-    textSetting(this.contentEl, "Start", "", (value) => (this.start = value), "time");
-    textSetting(this.contentEl, "End", "", (value) => (this.end = value), "time");
+    this.plugin.applyDirection(this.contentEl);
+    const localizedKind = this.plugin.t(this.kind === "point" ? "item.point" : "item.route");
+    this.contentEl.createEl("h2", { text: this.plugin.t("modal.addItem", { kind: localizedKind }) });
+    textSetting(this.contentEl, this.plugin.t("field.title"), "", (value) => (this.title = value));
+    textSetting(this.contentEl, this.plugin.t("field.start"), "", (value) => (this.start = value), "time");
+    textSetting(this.contentEl, this.plugin.t("field.end"), "", (value) => (this.end = value), "time");
     if (this.kind === "point") {
-      textSetting(this.contentEl, "Address", "", (value) => (this.address = value));
-      textSetting(this.contentEl, "Latitude", "", (value) => (this.latitude = value), "number");
-      textSetting(this.contentEl, "Longitude", "", (value) => (this.longitude = value), "number");
+      textSetting(this.contentEl, this.plugin.t("field.address"), "", (value) => (this.address = value));
+      textSetting(this.contentEl, this.plugin.t("field.latitude"), "", (value) => (this.latitude = value), "number");
+      textSetting(this.contentEl, this.plugin.t("field.longitude"), "", (value) => (this.longitude = value), "number");
+      textSetting(this.contentEl, this.plugin.t("field.opens"), "", (value) => (this.opens = value), "time", this.plugin.t("desc.openingHours"));
+      textSetting(this.contentEl, this.plugin.t("field.closes"), "", (value) => (this.closes = value), "time");
+    } else {
+      dropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.mode"),
+        transportModes,
+        this.mode,
+        (value) => (this.mode = value as TransportMode),
+        (value) => this.plugin.t(`transport.${value}` as TranslationKey),
+      );
+      textSetting(this.contentEl, this.plugin.t("field.line"), "", (value) => (this.lineName = value));
+      textSetting(this.contentEl, this.plugin.t("field.operator"), "", (value) => (this.operator = value));
       textSetting(
         this.contentEl,
-        "Opening hours",
+        this.plugin.t("field.knownDelay"),
         "",
-        (value) => (this.openingHours = value),
-        "text",
-        "Human-readable note, e.g. 09:00-18:00",
+        (value) => (this.delayMinutes = value),
+        "number",
       );
-    } else {
-      dropdownSetting(this.contentEl, "Mode", transportModes, this.mode, (value) => (this.mode = value as TransportMode));
-      textSetting(this.contentEl, "Line / service", "", (value) => (this.lineName = value));
-      textSetting(this.contentEl, "Operator", "", (value) => (this.operator = value));
-      textSetting(this.contentEl, "Known delay (minutes)", "", (value) => (this.delayMinutes = value), "number");
       const points = this.plugin.store.dataset.timelineItems.filter(
         (item) => item.dayId === this.day.id && item.kind === "point",
       );
-      relationDropdownSetting(this.contentEl, "From point", points, (value) => (this.fromPointId = value));
-      relationDropdownSetting(this.contentEl, "To point", points, (value) => (this.toPointId = value));
+      relationDropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.fromPoint"),
+        points,
+        (value) => (this.fromPointId = value),
+        "",
+        this.plugin.t("relation.notLinked"),
+      );
+      relationDropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.toPoint"),
+        points,
+        (value) => (this.toPointId = value),
+        "",
+        this.plugin.t("relation.notLinked"),
+      );
     }
     textSetting(
       this.contentEl,
-      `${this.kind === "route" ? "Fare" : "Planned cost"} (${this.trip.baseCurrency})`,
+      this.plugin.t(this.kind === "route" ? "field.fare" : "field.plannedCost", {
+        currency: this.trip.baseCurrency,
+      }),
       "",
       (value) => (this.plannedCost = value),
       "number",
     );
-    textSetting(this.contentEl, "Checklist", "", (value) => (this.checklist = value), "text", "Comma-separated");
-    textAreaSetting(this.contentEl, "Notes", "", (value) => (this.notes = value));
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.checklist"),
+      "",
+      (value) => (this.checklist = value),
+      "text",
+      this.plugin.t("desc.checklist"),
+    );
+    textAreaSetting(this.contentEl, this.plugin.t("field.notes"), "", (value) => (this.notes = value));
     new Setting(this.contentEl).addButton((button) =>
       button
-        .setButtonText("Add")
+        .setButtonText(this.plugin.t("button.add"))
         .setCta()
         .onClick(() => void this.submit()),
     );
@@ -562,7 +666,11 @@ class CreateItemModal extends Modal {
 
   private async submit(): Promise<void> {
     if (!this.title.trim()) {
-      new Notice("Enter a title.");
+      new Notice(this.plugin.t("notice.titleRequired"));
+      return;
+    }
+    if (!validOpeningHours(this.opens, this.closes)) {
+      new Notice(this.plugin.t("notice.invalidOpeningHours"));
       return;
     }
     const dataset = this.plugin.store.dataset;
@@ -572,6 +680,7 @@ class CreateItemModal extends Modal {
     const latitude = optionalNumber(this.latitude);
     const longitude = optionalNumber(this.longitude);
     const delayMinutes = optionalNumber(this.delayMinutes);
+    const openingPeriod = createOpeningPeriod(this.day.date, this.opens, this.closes);
     const current = {
       start: zonedLocalToIso(this.day.date, this.start, this.day.timeZone),
       end: zonedLocalToIso(this.day.date, this.end, this.day.timeZone),
@@ -597,10 +706,8 @@ class CreateItemModal extends Modal {
               name: this.title.trim(),
               ...(this.address.trim() ? { address: this.address.trim() } : {}),
               ...(validCoordinates(latitude, longitude) ? { coordinates: { latitude, longitude } } : {}),
-              ...(this.openingHours.trim() ? { openingHoursText: this.openingHours.trim() } : {}),
-              ...(parseOpeningPeriod(this.day.date, this.openingHours)
-                ? { openingPeriods: [parseOpeningPeriod(this.day.date, this.openingHours)!] }
-                : {}),
+              ...(openingPeriod ? { openingHoursText: `${openingPeriod.opens}-${openingPeriod.closes}` } : {}),
+              ...(openingPeriod ? { openingPeriods: [openingPeriod] } : {}),
             },
           }
         : {
@@ -657,7 +764,8 @@ class EditItemModal extends Modal {
   private detail: string;
   private latitude = "";
   private longitude = "";
-  private openingHours = "";
+  private opens = "";
+  private closes = "";
   private mode: TransportMode = "walk";
   private operator = "";
   private delayMinutes = "";
@@ -688,7 +796,11 @@ class EditItemModal extends Modal {
     if (item.kind === "point") {
       this.latitude = item.place.coordinates ? String(item.place.coordinates.latitude) : "";
       this.longitude = item.place.coordinates ? String(item.place.coordinates.longitude) : "";
-      this.openingHours = item.place.openingHoursText ?? "";
+      const day = plugin.store.dataset.days.find((candidate) => candidate.id === item.dayId);
+      const openingPeriod =
+        openingPeriodForDate(item.place.openingPeriods, day?.date) ?? parseOpeningHoursText(item.place.openingHoursText);
+      this.opens = openingPeriod?.opens ?? "";
+      this.closes = openingPeriod?.closes ?? "";
       const plannedExpense = plugin.store.dataset.expenses.find(
         (candidate) =>
           candidate.timelineItemId === item.id &&
@@ -709,46 +821,117 @@ class EditItemModal extends Modal {
   }
 
   onOpen(): void {
-    this.contentEl.createEl("h2", { text: `Edit ${this.item.kind}` });
-    textSetting(this.contentEl, "Title", this.title, (value) => (this.title = value));
-    textSetting(this.contentEl, "Start", this.start, (value) => (this.start = value), "time");
-    textSetting(this.contentEl, "End", this.end, (value) => (this.end = value), "time");
+    this.plugin.applyDirection(this.contentEl);
+    const localizedKind = this.plugin.t(this.item.kind === "point" ? "item.point" : "item.route");
+    this.contentEl.createEl("h2", { text: this.plugin.t("modal.editItem", { kind: localizedKind }) });
+    textSetting(this.contentEl, this.plugin.t("field.title"), this.title, (value) => (this.title = value));
+    textSetting(this.contentEl, this.plugin.t("field.start"), this.start, (value) => (this.start = value), "time");
+    textSetting(this.contentEl, this.plugin.t("field.end"), this.end, (value) => (this.end = value), "time");
     textSetting(
       this.contentEl,
-      this.item.kind === "point" ? "Address" : "Line / service",
+      this.plugin.t(this.item.kind === "point" ? "field.address" : "field.line"),
       this.detail,
       (value) => (this.detail = value),
     );
     if (this.item.kind === "point") {
-      textSetting(this.contentEl, "Latitude", this.latitude, (value) => (this.latitude = value), "number");
-      textSetting(this.contentEl, "Longitude", this.longitude, (value) => (this.longitude = value), "number");
-      textSetting(this.contentEl, "Opening hours", this.openingHours, (value) => (this.openingHours = value));
-      textSetting(this.contentEl, "Planned cost amount", this.plannedCost, (value) => (this.plannedCost = value), "number");
-      textSetting(this.contentEl, "Planned cost currency", this.plannedCurrency, (value) => (this.plannedCurrency = value));
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.latitude"),
+        this.latitude,
+        (value) => (this.latitude = value),
+        "number",
+      );
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.longitude"),
+        this.longitude,
+        (value) => (this.longitude = value),
+        "number",
+      );
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.opens"),
+        this.opens,
+        (value) => (this.opens = value),
+        "time",
+        this.plugin.t("desc.openingHours"),
+      );
+      textSetting(this.contentEl, this.plugin.t("field.closes"), this.closes, (value) => (this.closes = value), "time");
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.plannedCostAmount"),
+        this.plannedCost,
+        (value) => (this.plannedCost = value),
+        "number",
+      );
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.plannedCostCurrency"),
+        this.plannedCurrency,
+        (value) => (this.plannedCurrency = value),
+      );
     } else {
-      dropdownSetting(this.contentEl, "Mode", transportModes, this.mode, (value) => (this.mode = value as TransportMode));
-      textSetting(this.contentEl, "Operator", this.operator, (value) => (this.operator = value));
-      textSetting(this.contentEl, "Delay (minutes)", this.delayMinutes, (value) => (this.delayMinutes = value), "number");
-      textSetting(this.contentEl, "Fare amount", this.fareAmount, (value) => (this.fareAmount = value), "number");
-      textSetting(this.contentEl, "Fare currency", this.fareCurrency, (value) => (this.fareCurrency = value));
+      dropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.mode"),
+        transportModes,
+        this.mode,
+        (value) => (this.mode = value as TransportMode),
+        (value) => this.plugin.t(`transport.${value}` as TranslationKey),
+      );
+      textSetting(this.contentEl, this.plugin.t("field.operator"), this.operator, (value) => (this.operator = value));
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.delay"),
+        this.delayMinutes,
+        (value) => (this.delayMinutes = value),
+        "number",
+      );
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.fareAmount"),
+        this.fareAmount,
+        (value) => (this.fareAmount = value),
+        "number",
+      );
+      textSetting(
+        this.contentEl,
+        this.plugin.t("field.fareCurrency"),
+        this.fareCurrency,
+        (value) => (this.fareCurrency = value),
+      );
       const points = this.plugin.store.dataset.timelineItems.filter(
         (item) => item.dayId === this.item.dayId && item.kind === "point",
       );
-      relationDropdownSetting(this.contentEl, "From point", points, (value) => (this.fromPointId = value), this.fromPointId);
-      relationDropdownSetting(this.contentEl, "To point", points, (value) => (this.toPointId = value), this.toPointId);
+      relationDropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.fromPoint"),
+        points,
+        (value) => (this.fromPointId = value),
+        this.fromPointId,
+        this.plugin.t("relation.notLinked"),
+      );
+      relationDropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.toPoint"),
+        points,
+        (value) => (this.toPointId = value),
+        this.toPointId,
+        this.plugin.t("relation.notLinked"),
+      );
     }
     textSetting(
       this.contentEl,
-      "Checklist",
+      this.plugin.t("field.checklist"),
       this.checklist,
       (value) => (this.checklist = value),
       "text",
-      "Comma-separated; matching items keep their completion state",
+      this.plugin.t("desc.checklistEdit"),
     );
-    textAreaSetting(this.contentEl, "Notes", this.notes, (value) => (this.notes = value));
+    textAreaSetting(this.contentEl, this.plugin.t("field.notes"), this.notes, (value) => (this.notes = value));
     new Setting(this.contentEl).addButton((button) =>
       button
-        .setButtonText("Save")
+        .setButtonText(this.plugin.t("button.save"))
         .setCta()
         .onClick(() => void this.submit()),
     );
@@ -758,6 +941,10 @@ class EditItemModal extends Modal {
     const dataset = this.plugin.store.dataset;
     const day = dataset.days.find((candidate) => candidate.id === this.item.dayId);
     if (!day || !this.title.trim()) return;
+    if (!validOpeningHours(this.opens, this.closes)) {
+      new Notice(this.plugin.t("notice.invalidOpeningHours"));
+      return;
+    }
     const before = clone(this.item);
     ensureBaseline(this.item);
     this.item.title = this.title.trim();
@@ -772,9 +959,14 @@ class EditItemModal extends Modal {
       const longitude = optionalNumber(this.longitude);
       if (validCoordinates(latitude, longitude)) this.item.place.coordinates = { latitude, longitude };
       else delete this.item.place.coordinates;
-      this.item.place.openingHoursText = this.openingHours.trim();
-      const openingPeriod = parseOpeningPeriod(day.date, this.openingHours);
-      if (openingPeriod) this.item.place.openingPeriods = [openingPeriod];
+      const openingPeriod = createOpeningPeriod(day.date, this.opens, this.closes);
+      const openingPeriods = updateOpeningPeriods(this.item.place.openingPeriods, day.date, openingPeriod);
+      if (openingPeriod) {
+        this.item.place.openingHoursText = `${openingPeriod.opens}-${openingPeriod.closes}`;
+      } else {
+        delete this.item.place.openingHoursText;
+      }
+      if (openingPeriods.length) this.item.place.openingPeriods = openingPeriods;
       else delete this.item.place.openingPeriods;
       syncPointPlannedExpense(dataset, this.item, this.plannedCost, this.plannedCurrency);
     } else {
@@ -814,6 +1006,54 @@ class EditItemModal extends Modal {
   }
 }
 
+class TravelogUpsellModal extends Modal {
+  constructor(
+    app: App,
+    private plugin: TravelogPlannerPlugin,
+    private feature: "map" | "transit",
+    private context: UpsellContext,
+  ) {
+    super(app);
+  }
+
+  onOpen(): void {
+    this.plugin.applyDirection(this.contentEl);
+    this.contentEl.addClass("travelog-upsell");
+    this.contentEl.createEl("h2", { text: this.plugin.t(`upsell.${this.feature}.title`) });
+    this.contentEl.createEl("p", { text: this.plugin.t(`upsell.${this.feature}.body`) });
+
+    const route = this.context.route;
+    if (this.feature === "transit" && route?.kind === "route") {
+      const dataset = this.plugin.store.dataset;
+      const from = dataset.timelineItems.find((item) => item.id === route.route.fromPointId);
+      const to = dataset.timelineItems.find((item) => item.id === route.route.toPointId);
+      this.contentEl.createEl("p", {
+        cls: "travelog-planner__muted",
+        text: this.plugin.t("upsell.context", {
+          from: from?.title ?? this.plugin.t("relation.notLinked"),
+          to: to?.title ?? this.plugin.t("relation.notLinked"),
+        }),
+      });
+    }
+
+    const url = this.plugin.settings.travelogWebAppUrl.trim();
+    if (!validWebUrl(url)) {
+      this.contentEl.createEl("p", { cls: "travelog-planner__muted", text: this.plugin.t("upsell.notConfigured") });
+      return;
+    }
+
+    new Setting(this.contentEl).addButton((button) =>
+      button
+        .setButtonText(this.plugin.t("button.openTravelog"))
+        .setCta()
+        .onClick(() => {
+          window.open(buildTravelogUrl(url, this.feature, this.context), "_blank");
+          this.close();
+        }),
+    );
+  }
+}
+
 class TravelogSettingTab extends PluginSettingTab {
   constructor(
     app: App,
@@ -824,13 +1064,36 @@ class TravelogSettingTab extends PluginSettingTab {
 
   display(): void {
     this.containerEl.empty();
+    this.plugin.applyDirection(this.containerEl);
     new Setting(this.containerEl)
-      .setName("Travelog data path")
-      .setDesc("Vault-relative path for the common Travelog JSON dataset.")
+      .setName(this.plugin.t("setting.language.name"))
+      .setDesc(this.plugin.t("setting.language.desc"))
+      .addDropdown((dropdown) => {
+        for (const language of LANGUAGE_OPTIONS) {
+          dropdown.addOption(language.value, language.label);
+        }
+        dropdown.setValue(this.plugin.settings.language).onChange(async (value) => {
+          this.plugin.settings.language = value as LanguageSetting;
+          await this.plugin.saveSettings();
+          this.display();
+        });
+      });
+    new Setting(this.containerEl)
+      .setName(this.plugin.t("setting.dataPath.name"))
+      .setDesc(this.plugin.t("setting.dataPath.desc"))
       .addText((text) =>
         text.setValue(this.plugin.settings.dataPath).onChange(async (value) => {
           this.plugin.settings.dataPath = value.trim() || DEFAULT_SETTINGS.dataPath;
           await this.plugin.saveSettings();
+        }),
+      );
+    new Setting(this.containerEl)
+      .setName(this.plugin.t("setting.webUrl.name"))
+      .setDesc(this.plugin.t("setting.webUrl.desc"))
+      .addText((text) =>
+        text.setPlaceholder("https://travelog.example").setValue(this.plugin.settings.travelogWebAppUrl).onChange(async (value) => {
+          this.plugin.settings.travelogWebAppUrl = value.trim();
+          await this.plugin.saveData(this.plugin.settings);
         }),
       );
   }
@@ -862,9 +1125,10 @@ function dropdownSetting(
   options: readonly string[],
   value: string,
   onChange: (value: string) => void,
+  labelForValue: (value: string) => string = (option) => option,
 ): void {
   new Setting(parent).setName(name).addDropdown((dropdown) => {
-    for (const option of options) dropdown.addOption(option, option);
+    for (const option of options) dropdown.addOption(option, labelForValue(option));
     dropdown.setValue(value).onChange(onChange);
   });
 }
@@ -875,9 +1139,10 @@ function relationDropdownSetting(
   points: TimelineItem[],
   onChange: (value: string) => void,
   value = "",
+  emptyLabel = "Not linked",
 ): void {
   new Setting(parent).setName(name).addDropdown((dropdown) => {
-    dropdown.addOption("", "Not linked");
+    dropdown.addOption("", emptyLabel);
     for (const point of points) dropdown.addOption(point.id, point.title);
     dropdown.setValue(value).onChange(onChange);
   });
@@ -907,10 +1172,25 @@ function nextSortOrder(dataset: TravelogDataset, dayId: string): number {
   return orders.length ? Math.max(...orders) + 1 : 0;
 }
 
-function formatWindow(window: { start: string | null; end: string | null }): string {
-  if (!window.start && !window.end) return "Unscheduled";
+function formatWindow(window: { start: string | null; end: string | null }, unscheduled: string): string {
+  if (!window.start && !window.end) return unscheduled;
   const timeZone = "timeZone" in window && typeof window.timeZone === "string" ? window.timeZone : "UTC";
   return `${timeInZone(window.start, timeZone) || "?"} - ${timeInZone(window.end, timeZone) || "?"}`;
+}
+
+function localizedWarning(
+  plugin: TravelogPlannerPlugin,
+  dataset: TravelogDataset,
+  warning: ScheduleWarning,
+): string {
+  const keys: Record<ScheduleWarning["code"], TranslationKey> = {
+    "invalid-window": "warning.invalidWindow",
+    overlap: "warning.overlap",
+    "outside-opening-hours": "warning.outsideOpeningHours",
+    "broken-route-link": "warning.brokenRouteLink",
+  };
+  const title = dataset.timelineItems.find((item) => item.id === warning.itemId)?.title ?? warning.itemId;
+  return plugin.t(keys[warning.code], { title });
 }
 
 function timeInput(value: string | null, timeZone = "UTC"): string {
@@ -950,17 +1230,74 @@ function validTimeZone(timeZone: string): boolean {
   }
 }
 
-function parseOpeningPeriod(
+function validWebUrl(value: string): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function buildTravelogUrl(base: string, feature: "map" | "transit", context: UpsellContext): string {
+  const url = new URL(base);
+  url.searchParams.set("source", "obsidian");
+  url.searchParams.set("feature", feature);
+  if (context.tripId) url.searchParams.set("tripId", context.tripId);
+  if (context.dayId) url.searchParams.set("dayId", context.dayId);
+  if (context.route?.kind === "route") {
+    url.searchParams.set("routeId", context.route.id);
+    if (context.route.route.fromPointId) url.searchParams.set("fromPointId", context.route.route.fromPointId);
+    if (context.route.route.toPointId) url.searchParams.set("toPointId", context.route.route.toPointId);
+  }
+  return url.toString();
+}
+
+function validOpeningHours(opens: string, closes: string): boolean {
+  return (!opens && !closes) || (validTimeValue(opens) && validTimeValue(closes));
+}
+
+function validTimeValue(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function createOpeningPeriod(
   date: string,
-  value: string,
+  opens: string,
+  closes: string,
 ): { dayOfWeek: number; opens: string; closes: string } | undefined {
-  const match = value.match(/\b([01]\d|2[0-3]):([0-5]\d)\s*-\s*([01]\d|2[0-3]):([0-5]\d)\b/);
-  if (!match) return undefined;
+  if (!validTimeValue(opens) || !validTimeValue(closes)) return undefined;
   return {
     dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
-    opens: `${match[1]}:${match[2]}`,
-    closes: `${match[3]}:${match[4]}`,
+    opens,
+    closes,
   };
+}
+
+function parseOpeningHoursText(value: string | undefined): { opens: string; closes: string } | undefined {
+  const match = value?.match(/\b([01]\d|2[0-3]):([0-5]\d)\s*-\s*([01]\d|2[0-3]):([0-5]\d)\b/);
+  if (!match) return undefined;
+  return { opens: `${match[1]}:${match[2]}`, closes: `${match[3]}:${match[4]}` };
+}
+
+function openingPeriodForDate(
+  periods: readonly OpeningPeriod[] | undefined,
+  date: string | undefined,
+): OpeningPeriod | undefined {
+  if (!date) return undefined;
+  const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return periods?.find((period) => period.dayOfWeek === dayOfWeek);
+}
+
+function updateOpeningPeriods(
+  periods: readonly OpeningPeriod[] | undefined,
+  date: string,
+  replacement: OpeningPeriod | undefined,
+): OpeningPeriod[] {
+  const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const remaining = (periods ?? []).filter((period) => period.dayOfWeek !== dayOfWeek);
+  return replacement ? [...remaining, replacement] : remaining;
 }
 
 function today(): string {

@@ -202,13 +202,27 @@ function isInsideOpeningHours(
 ): boolean {
   const startParts = partsInTimeZone(new Date(start), timeZone);
   const endParts = partsInTimeZone(new Date(end), timeZone);
-  if (startParts.dayOfWeek !== endParts.dayOfWeek) return false;
-  const startTime = `${String(startParts.hour).padStart(2, "0")}:${String(startParts.minute).padStart(2, "0")}`;
-  const endTime = `${String(endParts.hour).padStart(2, "0")}:${String(endParts.minute).padStart(2, "0")}`;
-  return periods.some(
-    (period) =>
-      period.dayOfWeek === startParts.dayOfWeek &&
-      period.opens <= startTime &&
-      period.closes >= endTime,
+  const dayDifference = Math.round(
+    (Date.UTC(endParts.year, endParts.month - 1, endParts.day) -
+      Date.UTC(startParts.year, startParts.month - 1, startParts.day)) /
+      86_400_000,
   );
+  const visitStart = startParts.dayOfWeek * 1_440 + startParts.hour * 60 + startParts.minute;
+  const visitEnd =
+    startParts.dayOfWeek * 1_440 + dayDifference * 1_440 + endParts.hour * 60 + endParts.minute;
+  const weekMinutes = 7 * 1_440;
+
+  return periods.some((period) => {
+    const opens = period.dayOfWeek * 1_440 + minutes(period.opens);
+    let closes = period.dayOfWeek * 1_440 + minutes(period.closes);
+    if (closes <= opens) closes += 1_440;
+    return [-weekMinutes, 0, weekMinutes].some(
+      (shift) => opens + shift <= visitStart && closes + shift >= visitEnd,
+    );
+  });
+}
+
+function minutes(time: string): number {
+  const [hour, minute] = time.split(":").map(Number) as [number, number];
+  return hour * 60 + minute;
 }

@@ -13,7 +13,8 @@ timeline and preserves that data for future Travelog use.
 
 - Create trips and dated travel days.
 - Add points and routes to one chronological timeline.
-- Store place name, custom name, address, coordinates, opening hours, notes.
+- Store place name, custom name, address, coordinates, standardized opening
+  and closing times, notes.
 - Store transport mode, line/operator, linked endpoints, fare, notes.
 - Store planned checklist items, costs, and attachments.
 - Automatically preserve a frozen baseline before the first schedule edit.
@@ -29,7 +30,9 @@ timeline and preserves that data for future Travelog use.
   baselines on edit, and shift an item plus all following items.
 - Apply an explicit route delay while shifting dependent later items.
 - Enter coordinates and open a point in Google Maps.
-- Open all points for a day as a Google Maps route.
+- Enter opening and closing hours with native time-only inputs.
+- Direct live itinerary maps and automatic public-transit search to Travelog.
+- Choose the interface language or follow the system language.
 - Export the canonical dataset as Notion-compatible CSV files from the plugin.
 - No required account or external API key.
 

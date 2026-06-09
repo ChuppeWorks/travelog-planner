@@ -30,8 +30,10 @@ your original plan intact.
 building executable travel itineraries. Organize each trip by date, then place
 points and transport routes on one chronological timeline. Freeze a baseline,
 shift delayed items and everything after them, and catch overlap or saved
-opening-hour conflicts. Your raw data stays in your vault using an open schema
-designed for future Travelog import.
+opening-hour conflicts. Standardized time inputs and a multilingual interface
+make planning consistent across trips. Your raw data stays in your vault using
+an open schema designed for future Travelog import. Live itinerary maps and
+automatic public-transit search are clearly labeled Travelog web-app features.
 
 ### Publish checklist
 
@@ -54,7 +56,8 @@ there.
 routes between them. Keep addresses, coordinates, opening hours, transport
 lines, checklists, documents, and planned expenses together. Preserve a
 baseline before departure so later changes never erase the original plan.
-Stable IDs make the data ready for future Travelog import.
+Opening and closing times use a validated `HH:mm` pair, and stable IDs make the
+data ready for future Travelog import.
 
 ### Publish checklist
 

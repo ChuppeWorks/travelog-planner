@@ -43,3 +43,8 @@ pnpm import:notion /tmp/notion-export /tmp/imported.travelog.json
 
 Visible Notion fields override their corresponding values in `Travelog JSON`
 during import, while fields Notion does not expose remain preserved.
+
+Timeline `Opens` and `Closes` are a standardized pair. Enter both as local
+24-hour `HH:mm` values or leave both blank. Notion does not provide a
+date-free time property, so the importer validates these text fields before
+converting them to canonical `openingPeriods`.

@@ -4,6 +4,7 @@ import {
   type Attachment,
   type ChecklistItem,
   type Expense,
+  type OpeningPeriod,
   type PlanChange,
   type PlaceDetails,
   type RouteDetails,
@@ -31,7 +32,7 @@ export type NotionTables = Record<NotionTableName, string>;
 const headers: Record<NotionTableName, string[]> = {
   Trips: ["Name", "id", "Status", "Start date", "End date", "Timezone", "Base currency", "Destinations", "Notes", "Created at", "Updated at", "Travelog JSON"],
   Days: ["Name", "id", "tripId", "Date", "Sort order", "Timezone", "Notes", "Travelog JSON"],
-  Timeline: ["Name", "id", "tripId", "dayId", "Kind", "Sort order", "Current start", "Current end", "Timezone", "Baseline start", "Baseline end", "Actual start", "Actual end", "Actual delay minutes", "Place name", "Address", "Latitude", "Longitude", "Opening hours", "Transport mode", "Line", "Operator", "Delay minutes", "Fare amount", "Fare currency", "From point ID", "To point ID", "Notes", "Travelog JSON"],
+  Timeline: ["Name", "id", "tripId", "dayId", "Kind", "Sort order", "Current start", "Current end", "Timezone", "Baseline start", "Baseline end", "Actual start", "Actual end", "Actual delay minutes", "Place name", "Address", "Latitude", "Longitude", "Opens", "Closes", "Transport mode", "Line", "Operator", "Delay minutes", "Fare amount", "Fare currency", "From point ID", "To point ID", "Notes", "Travelog JSON"],
   Checklist: ["Name", "id", "tripId", "dayId", "timelineItemId", "Phase", "Completed", "Sort order", "Travelog JSON"],
   Expenses: ["Name", "id", "tripId", "dayId", "timelineItemId", "Phase", "Category", "Amount", "Currency", "Payer", "Notes", "Travelog JSON"],
   Attachments: ["Name", "id", "tripId", "dayId", "timelineItemId", "Kind", "URL", "Provider", "Provider ID", "Travelog JSON"],
@@ -39,10 +40,11 @@ const headers: Record<NotionTableName, string[]> = {
 };
 
 export function datasetToNotionTables(dataset: TravelogDataset): NotionTables {
+  const dayDates = new Map(dataset.days.map((day) => [day.id, day.date]));
   return {
     Trips: stringifyCsv(headers.Trips, dataset.trips.map(tripRow)),
     Days: stringifyCsv(headers.Days, dataset.days.map(dayRow)),
-    Timeline: stringifyCsv(headers.Timeline, dataset.timelineItems.map(timelineRow)),
+    Timeline: stringifyCsv(headers.Timeline, dataset.timelineItems.map((item) => timelineRow(item, dayDates.get(item.dayId)))),
     Checklist: stringifyCsv(headers.Checklist, dataset.checklistItems.map(checklistRow)),
     Expenses: stringifyCsv(headers.Expenses, dataset.expenses.map(expenseRow)),
     Attachments: stringifyCsv(headers.Attachments, dataset.attachments.map(attachmentRow)),
@@ -51,12 +53,14 @@ export function datasetToNotionTables(dataset: TravelogDataset): NotionTables {
 }
 
 export function notionTablesToDataset(tables: Partial<NotionTables>): TravelogDataset {
+  const days = rows(tables.Days).map(parseDay);
+  const dayDates = new Map(days.map((day) => [day.id, day.date]));
   return {
     schemaVersion: SCHEMA_VERSION,
     exportedAt: nowIso(),
     trips: rows(tables.Trips).map(parseTrip),
-    days: rows(tables.Days).map(parseDay),
-    timelineItems: rows(tables.Timeline).map(parseTimeline),
+    days,
+    timelineItems: rows(tables.Timeline).map((row) => parseTimeline(row, dayDates)),
     checklistItems: rows(tables.Checklist).map(parseChecklist),
     expenses: rows(tables.Expenses).map(parseExpense),
     attachments: rows(tables.Attachments).map(parseAttachment),
@@ -79,9 +83,10 @@ function dayRow(day: TravelDay): CsvRow {
   };
 }
 
-function timelineRow(item: TimelineItem): CsvRow {
+function timelineRow(item: TimelineItem, dayDate: string | undefined): CsvRow {
   const place = item.kind === "point" ? item.place : undefined;
   const route = item.kind === "route" ? item.route : undefined;
+  const openingPeriod = openingPeriodForDate(place, dayDate);
   return {
     Name: item.title, id: item.id, tripId: item.tripId, dayId: item.dayId, Kind: item.kind,
     "Sort order": String(item.sortOrder), "Current start": item.schedule.current.start ?? "",
@@ -90,7 +95,8 @@ function timelineRow(item: TimelineItem): CsvRow {
     "Actual start": item.schedule.actual?.start ?? "", "Actual end": item.schedule.actual?.end ?? "",
     "Actual delay minutes": optional(item.schedule.actualDelayMinutes), "Place name": place?.name ?? "", Address: place?.address ?? "",
     Latitude: optional(place?.coordinates?.latitude), Longitude: optional(place?.coordinates?.longitude),
-    "Opening hours": place?.openingHoursText ?? "", "Transport mode": route?.mode ?? "", Line: route?.lineName ?? "",
+    Opens: openingPeriod?.opens ?? "", Closes: openingPeriod?.closes ?? "",
+    "Transport mode": route?.mode ?? "", Line: route?.lineName ?? "",
     Operator: route?.operator ?? "", "Delay minutes": optional(route?.delayMinutes),
     "Fare amount": optional(route?.fare?.amount), "Fare currency": route?.fare?.currency ?? "",
     "From point ID": route?.fromPointId ?? "", "To point ID": route?.toPointId ?? "", Notes: item.notes ?? "",
@@ -153,7 +159,7 @@ function parseDay(row: CsvRow): TravelDay {
   return day;
 }
 
-function parseTimeline(row: CsvRow): TimelineItem {
+function parseTimeline(row: CsvRow, dayDates: ReadonlyMap<string, string>): TimelineItem {
   const base = fromRaw<Partial<TimelineItem>>(row);
   const timeZone = row.Timezone || base.schedule?.current.timeZone || "UTC";
   const schedule = {
@@ -199,14 +205,19 @@ function parseTimeline(row: CsvRow): TimelineItem {
   delete place.address;
   delete place.coordinates;
   delete place.openingHoursText;
-  if (!row["Opening hours"]) delete place.openingPeriods;
+  delete place.openingPeriods;
+  const openingHours = parseNotionOpeningHours(
+    row,
+    dayDates.get(row.dayId!),
+    base.kind === "point" ? base.place : undefined,
+  );
   return {
     ...common, kind: "point", place: {
       ...place,
       name: row["Place name"] || (base.kind === "point" && base.place ? base.place.name : row.Name!),
       ...(row.Address ? { address: row.Address } : {}),
       ...(row.Latitude !== "" && row.Longitude !== "" ? { coordinates: { latitude: number(row.Latitude), longitude: number(row.Longitude) } } : {}),
-      ...(row["Opening hours"] ? { openingHoursText: row["Opening hours"] } : {}),
+      ...openingHours,
     },
   } as TimelineItem;
 }
@@ -248,3 +259,72 @@ function number(value: string | undefined): number { return Number(value || 0); 
 function split(value: string | undefined): string[] { return (value ?? "").split(/\s*\|\s*/).filter(Boolean); }
 function fromRaw<T>(row: CsvRow): T { return parseJson<T>(row["Travelog JSON"], {} as T); }
 function parseJson<T>(value: string | undefined, fallback: T): T { try { return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } }
+
+function parseNotionOpeningHours(
+  row: CsvRow,
+  dayDate: string | undefined,
+  basePlace: PlaceDetails | undefined,
+): Pick<PlaceDetails, "openingPeriods" | "openingHoursText"> {
+  const opens = row.Opens?.trim() ?? "";
+  const closes = row.Closes?.trim() ?? "";
+  const dayOfWeek = dayOfWeekForDate(dayDate);
+  if (dayOfWeek === undefined) {
+    if (opens || closes) {
+      throw new Error(`Timeline item ${row.id || row.Name || "unknown"} needs a related day date for opening hours.`);
+    }
+    return openingFields(basePlace);
+  }
+
+  const basePeriods = basePlace?.openingPeriods ?? [];
+  const sameDay = basePeriods.filter((period) => period.dayOfWeek === dayOfWeek);
+  if (!opens && !closes) {
+    if (!sameDay.length) return openingFields(basePlace);
+    const remaining = basePeriods.filter((period) => period.dayOfWeek !== dayOfWeek);
+    return remaining.length ? { openingPeriods: remaining } : {};
+  }
+  if (!validTime(opens) || !validTime(closes)) {
+    throw new Error(`Timeline item ${row.id || row.Name || "unknown"} must provide Opens and Closes as HH:mm.`);
+  }
+  if (sameDay.some((period) => period.opens === opens && period.closes === closes)) {
+    return openingFields(basePlace);
+  }
+  const openingPeriod = { dayOfWeek, opens, closes };
+  const openingPeriods = [...basePeriods.filter((period) => period.dayOfWeek !== dayOfWeek), openingPeriod];
+  return {
+    openingHoursText: `${opens}-${closes}`,
+    openingPeriods,
+  };
+}
+
+function parseLegacyOpeningHours(value: string | undefined): { opens: string; closes: string } | undefined {
+  const match = value?.match(/\b([01]\d|2[0-3]):[0-5]\d\s*-\s*([01]\d|2[0-3]):[0-5]\d\b/);
+  if (!match) return undefined;
+  const [opens, closes] = match[0].split(/\s*-\s*/);
+  return opens && closes ? { opens, closes } : undefined;
+}
+
+function validTime(value: string): boolean {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function openingPeriodForDate(place: PlaceDetails | undefined, dayDate: string | undefined): OpeningPeriod | undefined {
+  const dayOfWeek = dayOfWeekForDate(dayDate);
+  const period = dayOfWeek === undefined
+    ? undefined
+    : place?.openingPeriods?.find((candidate) => candidate.dayOfWeek === dayOfWeek);
+  if (period) return period;
+  const legacy = parseLegacyOpeningHours(place?.openingHoursText);
+  return legacy && dayOfWeek !== undefined ? { dayOfWeek, ...legacy } : undefined;
+}
+
+function dayOfWeekForDate(date: string | undefined): number | undefined {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return undefined;
+  return new Date(`${date}T00:00:00Z`).getUTCDay();
+}
+
+function openingFields(place: PlaceDetails | undefined): Pick<PlaceDetails, "openingPeriods" | "openingHoursText"> {
+  return {
+    ...(place?.openingHoursText ? { openingHoursText: place.openingHoursText } : {}),
+    ...(place?.openingPeriods?.length ? { openingPeriods: place.openingPeriods } : {}),
+  };
+}

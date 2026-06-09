@@ -73,9 +73,23 @@ function validateTimelineItem(item: TimelineItem, errors: string[]): void {
   if (raw.kind !== "point" && raw.kind !== "route") errors.push(`Timeline item ${String(raw.id)} has invalid kind.`);
   if (!item.schedule?.current?.timeZone) errors.push(`Timeline item ${item.id} needs a current schedule timezone.`);
   if (item.kind === "point" && !item.place?.name) errors.push(`Point ${item.id} needs a place name.`);
+  if (item.kind === "point") {
+    for (const [index, period] of (item.place?.openingPeriods ?? []).entries()) {
+      if (!Number.isInteger(period.dayOfWeek) || period.dayOfWeek < 0 || period.dayOfWeek > 6) {
+        errors.push(`Point ${item.id} opening period ${index + 1} needs dayOfWeek from 0 to 6.`);
+      }
+      if (!validTime(period.opens) || !validTime(period.closes)) {
+        errors.push(`Point ${item.id} opening period ${index + 1} must use HH:mm times.`);
+      }
+    }
+  }
   if (item.kind === "route" && !item.route?.mode) errors.push(`Route ${item.id} needs a transport mode.`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function validTime(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }

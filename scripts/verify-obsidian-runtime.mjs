@@ -25,9 +25,22 @@ socket.addEventListener("message", (event) => {
 
 await send("Runtime.enable");
 assert.equal(await evaluate('Boolean(window.app?.plugins?.plugins?.["travelog-planner"])'), true);
+await evaluate(`(async () => {
+  const plugin = window.app.plugins.plugins["travelog-planner"];
+  plugin.settings.language = "ko";
+  await plugin.saveData(plugin.settings);
+})()`);
 assert.equal(await evaluate('window.app.commands.executeCommandById("travelog-planner:open-planner")'), true);
 await sleep(400);
 assert.equal(await evaluate('Boolean(document.querySelector(".travelog-planner"))'), true);
+assert.equal(await evaluate('Boolean([...document.querySelectorAll(".travelog-planner button")].find((button) => button.textContent?.trim() === "새 여행"))'), true);
+await evaluate(`(async () => {
+  const plugin = window.app.plugins.plugins["travelog-planner"];
+  plugin.settings.language = "en";
+  await plugin.saveData(plugin.settings);
+  await plugin.refreshViews();
+})()`);
+await sleep(200);
 
 await evaluate(`(${clickPlannerButton.toString()})("New trip")`);
 await sleep(100);
@@ -42,13 +55,18 @@ await sleep(400);
 
 await evaluate(`(${clickPlannerButton.toString()})("Add point")`);
 await sleep(100);
+assert.equal(await settingInputType("Start"), "time");
+assert.equal(await settingInputType("End"), "time");
+assert.equal(await settingInputType("Opens"), "time");
+assert.equal(await settingInputType("Closes"), "time");
 await setSetting("Title", "Kyoto Station");
 await setSetting("Start", "09:00");
 await setSetting("End", "09:20");
 await setSetting("Address", "Kyoto Station");
 await setSetting("Latitude", "34.985849");
 await setSetting("Longitude", "135.758767");
-await setSetting("Opening hours", "06:00-23:00");
+await setSetting("Opens", "06:00");
+await setSetting("Closes", "23:00");
 await setSetting("Planned cost (JPY)", "500");
 await setSetting("Checklist", "Load transit card");
 await setSetting("Notes", "Runtime point");
@@ -77,6 +95,20 @@ await setFirstOption("To point");
 await setSetting("Fare (JPY)", "230");
 await evaluate(`(${clickModalButton.toString()})("Add")`);
 await sleep(400);
+
+await evaluate(`(${clickPlannerButton.toString()})("View map in Travelog")`);
+await sleep(100);
+assert.equal(await evaluate('Boolean([...document.querySelectorAll(".modal-container h2")].find((heading) => heading.textContent?.trim() === "See this itinerary on a live map"))'), true);
+assert.equal(await evaluate('document.querySelector(".modal-container")?.textContent?.includes("not configured yet") ?? false'), true);
+await evaluate(`(${closeModal.toString()})()`);
+await sleep(100);
+
+await evaluate(`(${clickPlannerButton.toString()})("Find public transit in Travelog")`);
+await sleep(100);
+assert.equal(await evaluate('Boolean([...document.querySelectorAll(".modal-container h2")].find((heading) => heading.textContent?.trim() === "Find public transit automatically"))'), true);
+assert.equal(await evaluate('document.querySelector(".modal-container")?.textContent?.includes("Kyoto Station → Kyoto Station") ?? false'), true);
+await evaluate(`(${closeModal.toString()})()`);
+await sleep(100);
 
 await evaluate(`(${clickPlannerButton.toString()})("Apply +15m delay")`);
 await sleep(400);
@@ -113,6 +145,10 @@ assert.match(summary.text, /Runtime Test Trip/);
 assert.match(summary.text, /Kyoto Station/);
 assert.match(summary.text, /Bus to Gion/);
 assert.match(summary.text, /Delay: 15 minutes/);
+assert.equal(
+  await evaluate('getComputedStyle(document.querySelector(".travelog-planner__item"), "::before").transform !== "none"'),
+  true,
+);
 
 console.log(JSON.stringify(summary, null, 2));
 socket.close();
@@ -123,6 +159,10 @@ async function setSetting(name, value) {
 
 async function setFirstOption(name) {
   await evaluate(`(${setFirstSelectOption.toString()})(${JSON.stringify(name)})`);
+}
+
+async function settingInputType(name) {
+  return evaluate(`(${getSettingInputType.toString()})(${JSON.stringify(name)})`);
 }
 
 async function evaluate(expression) {
@@ -160,6 +200,13 @@ function clickModalButton(label) {
   return true;
 }
 
+function closeModal() {
+  const button = document.querySelector(".modal-container .modal-close-button");
+  if (!button) throw new Error("Modal close button not found");
+  button.click();
+  return true;
+}
+
 function setSettingValue(name, value) {
   const setting = [...document.querySelectorAll(".modal-container .setting-item")].find(
     (candidate) => candidate.querySelector(".setting-item-name")?.textContent?.trim() === name,
@@ -183,4 +230,14 @@ function setFirstSelectOption(name) {
   select.value = select.options[1].value;
   select.dispatchEvent(new Event("change", { bubbles: true }));
   return true;
+}
+
+function getSettingInputType(name) {
+  const setting = [...document.querySelectorAll(".modal-container .setting-item")].find(
+    (candidate) => candidate.querySelector(".setting-item-name")?.textContent?.trim() === name,
+  );
+  if (!setting) throw new Error(`Setting not found: ${name}`);
+  const input = setting.querySelector("input");
+  if (!input) throw new Error(`Input not found: ${name}`);
+  return input.type;
 }

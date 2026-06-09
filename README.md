@@ -12,6 +12,10 @@ import plans without forcing users to rebuild their trips.
 - Make the free tools genuinely useful for planning.
 - Keep raw data portable and user-owned.
 - Round-trip canonical JSON through Notion CSV without discarding hidden fields.
+- Enter opening and closing hours as standardized local `HH:mm` values.
+- Use the Obsidian interface in 20 languages plus system-language auto mode.
+- Keep free planning local while live maps and automatic transit search point
+  clearly to the future paid Travelog web app.
 - Reserve live provider integrations, automatic replanning, and rich travel
   recording for the future Travelog service.
 

@@ -73,6 +73,31 @@ test("opening-hours warning uses the item's IANA timezone", async () => {
   assert.ok(codes.includes("outside-opening-hours"));
 });
 
+test("opening-hours warning accepts visits inside an overnight period", async () => {
+  const dataset = await sample();
+  const point = dataset.timelineItems[2]!;
+  point.schedule.current.start = "2026-10-10T14:30:00.000Z";
+  point.schedule.current.end = "2026-10-10T15:30:00.000Z";
+  if (point.kind === "point") {
+    point.place.openingPeriods = [{ dayOfWeek: 6, opens: "18:00", closes: "02:00" }];
+  }
+
+  const codes = scheduleWarnings(dataset, "day_demo_kyoto_1").map((warning) => warning.code);
+  assert.ok(!codes.includes("outside-opening-hours"));
+});
+
+test("opening periods require a weekday and standardized HH:mm values", async () => {
+  const dataset = await sample();
+  const point = dataset.timelineItems[2]!;
+  if (point.kind === "point") {
+    point.place.openingPeriods = [{ dayOfWeek: 8, opens: "9am", closes: "18:00" }];
+  }
+
+  const errors = validateDataset(dataset).errors;
+  assert.ok(errors.some((error) => error.includes("dayOfWeek from 0 to 6")));
+  assert.ok(errors.some((error) => error.includes("must use HH:mm times")));
+});
+
 test("local trip time converts using the trip timezone instead of the computer timezone", () => {
   const instant = zonedLocalToIso("2026-10-10", "09:00", "Asia/Tokyo");
   assert.equal(instant, "2026-10-10T00:00:00.000Z");

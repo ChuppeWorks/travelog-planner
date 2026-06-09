@@ -665,6 +665,9 @@ class EditItemModal extends Modal {
   private fareCurrency = "";
   private fromPointId = "";
   private toPointId = "";
+  private plannedCost = "";
+  private plannedCurrency = "";
+  private checklist = "";
 
   constructor(
     app: App,
@@ -677,10 +680,23 @@ class EditItemModal extends Modal {
     this.end = timeInput(item.schedule.current.end, item.schedule.current.timeZone);
     this.notes = item.notes ?? "";
     this.detail = item.kind === "point" ? item.place.address ?? "" : item.route.lineName ?? "";
+    this.checklist = plugin.store.dataset.checklistItems
+      .filter((candidate) => candidate.timelineItemId === item.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((candidate) => candidate.label)
+      .join(", ");
     if (item.kind === "point") {
       this.latitude = item.place.coordinates ? String(item.place.coordinates.latitude) : "";
       this.longitude = item.place.coordinates ? String(item.place.coordinates.longitude) : "";
       this.openingHours = item.place.openingHoursText ?? "";
+      const plannedExpense = plugin.store.dataset.expenses.find(
+        (candidate) =>
+          candidate.timelineItemId === item.id &&
+          candidate.phase === "planned" &&
+          candidate.category === "activity",
+      );
+      this.plannedCost = plannedExpense ? String(plannedExpense.amount) : "";
+      this.plannedCurrency = plannedExpense?.currency ?? "";
     } else {
       this.mode = item.route.mode;
       this.operator = item.route.operator ?? "";
@@ -707,6 +723,8 @@ class EditItemModal extends Modal {
       textSetting(this.contentEl, "Latitude", this.latitude, (value) => (this.latitude = value), "number");
       textSetting(this.contentEl, "Longitude", this.longitude, (value) => (this.longitude = value), "number");
       textSetting(this.contentEl, "Opening hours", this.openingHours, (value) => (this.openingHours = value));
+      textSetting(this.contentEl, "Planned cost amount", this.plannedCost, (value) => (this.plannedCost = value), "number");
+      textSetting(this.contentEl, "Planned cost currency", this.plannedCurrency, (value) => (this.plannedCurrency = value));
     } else {
       dropdownSetting(this.contentEl, "Mode", transportModes, this.mode, (value) => (this.mode = value as TransportMode));
       textSetting(this.contentEl, "Operator", this.operator, (value) => (this.operator = value));
@@ -719,6 +737,14 @@ class EditItemModal extends Modal {
       relationDropdownSetting(this.contentEl, "From point", points, (value) => (this.fromPointId = value), this.fromPointId);
       relationDropdownSetting(this.contentEl, "To point", points, (value) => (this.toPointId = value), this.toPointId);
     }
+    textSetting(
+      this.contentEl,
+      "Checklist",
+      this.checklist,
+      (value) => (this.checklist = value),
+      "text",
+      "Comma-separated; matching items keep their completion state",
+    );
     textAreaSetting(this.contentEl, "Notes", this.notes, (value) => (this.notes = value));
     new Setting(this.contentEl).addButton((button) =>
       button
@@ -729,7 +755,8 @@ class EditItemModal extends Modal {
   }
 
   private async submit(): Promise<void> {
-    const day = this.plugin.store.dataset.days.find((candidate) => candidate.id === this.item.dayId);
+    const dataset = this.plugin.store.dataset;
+    const day = dataset.days.find((candidate) => candidate.id === this.item.dayId);
     if (!day || !this.title.trim()) return;
     const before = clone(this.item);
     ensureBaseline(this.item);
@@ -749,6 +776,7 @@ class EditItemModal extends Modal {
       const openingPeriod = parseOpeningPeriod(day.date, this.openingHours);
       if (openingPeriod) this.item.place.openingPeriods = [openingPeriod];
       else delete this.item.place.openingPeriods;
+      syncPointPlannedExpense(dataset, this.item, this.plannedCost, this.plannedCurrency);
     } else {
       this.item.route.lineName = this.detail.trim();
       this.item.route.mode = this.mode;
@@ -766,9 +794,10 @@ class EditItemModal extends Modal {
       else delete this.item.route.fromPointId;
       if (this.toPointId) this.item.route.toPointId = this.toPointId;
       else delete this.item.route.toPointId;
-      syncRouteFareExpense(this.plugin.store.dataset, this.item);
+      syncRouteFareExpense(dataset, this.item);
     }
-    this.plugin.store.dataset.planChanges.push({
+    syncItemChecklist(dataset, this.item, splitList(this.checklist));
+    dataset.planChanges.push({
       id: newId("change"),
       tripId: this.item.tripId,
       entityType: "timelineItem",
@@ -904,7 +933,12 @@ function splitList(value: string): string[] {
 }
 
 function validDateRange(start: string, end: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end) && start <= end;
+  return validIsoDate(start) && validIsoDate(end) && start <= end;
+}
+
+function validIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
 function validTimeZone(timeZone: string): boolean {
@@ -971,6 +1005,65 @@ function syncRouteFareExpense(dataset: TravelogDataset, item: TimelineItem): voi
       currency: item.route.fare.currency,
     });
   }
+}
+
+function syncPointPlannedExpense(
+  dataset: TravelogDataset,
+  item: TimelineItem,
+  amountValue: string,
+  currencyValue: string,
+): void {
+  if (item.kind !== "point") return;
+  const existing = dataset.expenses.find(
+    (expense) =>
+      expense.timelineItemId === item.id &&
+      expense.phase === "planned" &&
+      expense.category === "activity",
+  );
+  const amount = optionalNumber(amountValue);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    if (existing) dataset.expenses = dataset.expenses.filter((expense) => expense.id !== existing.id);
+    return;
+  }
+  const trip = dataset.trips.find((candidate) => candidate.id === item.tripId);
+  const currency = currencyValue.trim().toUpperCase() || trip?.baseCurrency || "USD";
+  if (existing) {
+    existing.amount = amount;
+    existing.currency = currency;
+  } else {
+    dataset.expenses.push({
+      id: newId("expense"),
+      tripId: item.tripId,
+      dayId: item.dayId,
+      timelineItemId: item.id,
+      phase: "planned",
+      category: "activity",
+      amount,
+      currency,
+    });
+  }
+}
+
+function syncItemChecklist(dataset: TravelogDataset, item: TimelineItem, labels: string[]): void {
+  const remaining = dataset.checklistItems.filter((candidate) => candidate.timelineItemId === item.id);
+  const synced = labels.map((label, sortOrder) => {
+    const existingIndex = remaining.findIndex((candidate) => candidate.label === label);
+    const existing = existingIndex >= 0 ? remaining.splice(existingIndex, 1)[0] : undefined;
+    return existing
+      ? { ...existing, label, sortOrder }
+      : {
+          id: newId("check"),
+          tripId: item.tripId,
+          dayId: item.dayId,
+          timelineItemId: item.id,
+          label,
+          phase: "during" as const,
+          completed: false,
+          sortOrder,
+        };
+  });
+  dataset.checklistItems = dataset.checklistItems.filter((candidate) => candidate.timelineItemId !== item.id);
+  dataset.checklistItems.push(...synced);
 }
 
 async function ensureFolder(app: App, path: string): Promise<void> {

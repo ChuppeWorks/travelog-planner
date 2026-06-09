@@ -55,6 +55,14 @@ await setSetting("Notes", "Runtime point");
 await evaluate(`(${clickModalButton.toString()})("Add")`);
 await sleep(400);
 
+await evaluate(`(${clickPlannerButton.toString()})("Edit")`);
+await sleep(100);
+await setSetting("Planned cost amount", "650");
+await setSetting("Planned cost currency", "JPY");
+await setSetting("Checklist", "Load transit card, Buy snack");
+await evaluate(`(${clickModalButton.toString()})("Save")`);
+await sleep(400);
+
 await evaluate(`(${clickPlannerButton.toString()})("Add route")`);
 await sleep(100);
 await setSetting("Title", "Bus to Gion");
@@ -86,6 +94,8 @@ const summary = await evaluate(`(() => {
     delay: route?.route.delayMinutes,
     baseline: Boolean(route?.schedule.baseline),
     changes: dataset.planChanges.length,
+    pointPlannedCost: dataset.expenses.find((expense) => expense.timelineItemId === dataset.timelineItems.find((item) => item.kind === "point")?.id)?.amount,
+    pointChecklistCount: dataset.checklistItems.filter((item) => item.timelineItemId === dataset.timelineItems.find((candidate) => candidate.kind === "point")?.id).length,
     text: document.querySelector(".travelog-planner")?.textContent ?? ""
   };
 })()`);
@@ -97,6 +107,8 @@ assert.deepEqual(
 assert.equal(summary.delay, 15);
 assert.equal(summary.baseline, true);
 assert.ok(summary.changes >= 3);
+assert.equal(summary.pointPlannedCost, 650);
+assert.equal(summary.pointChecklistCount, 2);
 assert.match(summary.text, /Runtime Test Trip/);
 assert.match(summary.text, /Kyoto Station/);
 assert.match(summary.text, /Bus to Gion/);

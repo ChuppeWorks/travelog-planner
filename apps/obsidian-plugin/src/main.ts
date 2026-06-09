@@ -20,7 +20,9 @@ import {
   nowIso,
   scheduleWarnings,
   shiftItemAndFollowing,
+  syncTripDateRange,
   timeInZone,
+  updateTravelDay,
   validateDataset,
   zonedLocalToIso,
   type TimelineItem,
@@ -235,6 +237,10 @@ class TravelogPlannerView extends ItemView {
         void this.render();
       },
     );
+    const selectedTrip = dataset.trips.find((trip) => trip.id === this.selectedTripId)!;
+    this.button(selectors, this.plugin.t("button.editTrip"), () =>
+      new EditTripModal(this.app, this.plugin, selectedTrip).open(),
+    );
     const days = dataset.days
       .filter((day) => day.tripId === this.selectedTripId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -247,6 +253,12 @@ class TravelogPlannerView extends ItemView {
         void this.render();
       },
     );
+    const selectedDay = days.find((day) => day.id === this.selectedDayId);
+    if (selectedDay) {
+      this.button(selectors, this.plugin.t("button.editDay"), () =>
+        new EditDayModal(this.app, this.plugin, selectedDay).open(),
+      );
+    }
 
     const toolbar = container.createDiv({ cls: "travelog-planner__toolbar" });
     this.button(toolbar, this.plugin.t("button.addPoint"), () => this.openItemModal("point"));
@@ -554,6 +566,192 @@ class CreateTripModal extends Modal {
     dataset.days.push(...createDays(trip));
     await this.plugin.store.save();
     await this.plugin.refreshViews();
+    this.close();
+  }
+}
+
+class EditTripModal extends Modal {
+  private name: string;
+  private status: Trip["status"];
+  private startDate: string;
+  private endDate: string;
+  private timeZone: string;
+  private baseCurrency: string;
+  private destinations: string;
+  private notes: string;
+
+  constructor(
+    app: App,
+    private plugin: TravelogPlannerPlugin,
+    private trip: Trip,
+  ) {
+    super(app);
+    this.name = trip.name;
+    this.status = trip.status;
+    this.startDate = trip.startDate;
+    this.endDate = trip.endDate;
+    this.timeZone = trip.timeZone;
+    this.baseCurrency = trip.baseCurrency;
+    this.destinations = trip.destinations.join(", ");
+    this.notes = trip.notes ?? "";
+  }
+
+  onOpen(): void {
+    this.plugin.applyDirection(this.contentEl);
+    this.contentEl.createEl("h2", { text: this.plugin.t("modal.editTrip") });
+    textSetting(this.contentEl, this.plugin.t("field.name"), this.name, (value) => (this.name = value));
+    dropdownSetting(
+      this.contentEl,
+      this.plugin.t("field.status"),
+      tripStatuses,
+      this.status,
+      (value) => (this.status = value as Trip["status"]),
+      (value) => this.plugin.t(`status.${value}` as TranslationKey),
+    );
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.startDate"),
+      this.startDate,
+      (value) => (this.startDate = value),
+      "date",
+      this.plugin.t("desc.tripRange"),
+    );
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.endDate"),
+      this.endDate,
+      (value) => (this.endDate = value),
+      "date",
+    );
+    textSetting(this.contentEl, this.plugin.t("field.timeZone"), this.timeZone, (value) => (this.timeZone = value));
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.baseCurrency"),
+      this.baseCurrency,
+      (value) => (this.baseCurrency = value.toUpperCase()),
+    );
+    textSetting(
+      this.contentEl,
+      this.plugin.t("field.destinations"),
+      this.destinations,
+      (value) => (this.destinations = value),
+      "text",
+      this.plugin.t("desc.destinations"),
+    );
+    textAreaSetting(this.contentEl, this.plugin.t("field.notes"), this.notes, (value) => (this.notes = value));
+    new Setting(this.contentEl).addButton((button) =>
+      button
+        .setButtonText(this.plugin.t("button.save"))
+        .setCta()
+        .onClick(() => void this.submit()),
+    );
+  }
+
+  private async submit(): Promise<void> {
+    if (!this.name.trim() || !validDateRange(this.startDate, this.endDate) || !validTimeZone(this.timeZone)) {
+      new Notice(this.plugin.t("notice.invalidTrip"));
+      return;
+    }
+    const dataset = this.plugin.store.dataset;
+    const before = clone(this.trip);
+    const sync = syncTripDateRange(dataset, this.trip.id, this.startDate, this.endDate, this.timeZone);
+    if (sync.blockedDates.length) {
+      new Notice(this.plugin.t("notice.tripRangeHasContent", { dates: sync.blockedDates.join(", ") }));
+      return;
+    }
+    this.trip.name = this.name.trim();
+    this.trip.status = this.status;
+    this.trip.startDate = this.startDate;
+    this.trip.endDate = this.endDate;
+    this.trip.timeZone = this.timeZone;
+    this.trip.baseCurrency = this.baseCurrency.trim().toUpperCase() || "USD";
+    this.trip.destinations = splitList(this.destinations);
+    if (this.notes.trim()) this.trip.notes = this.notes.trim();
+    else delete this.trip.notes;
+    this.trip.updatedAt = nowIso();
+    dataset.planChanges.push({
+      id: newId("change"),
+      tripId: this.trip.id,
+      entityType: "trip",
+      entityId: this.trip.id,
+      changedAt: nowIso(),
+      source: "user",
+      reason: "Edited trip in Obsidian",
+      before: before as unknown as Record<string, unknown>,
+      after: clone(this.trip) as unknown as Record<string, unknown>,
+    });
+    await this.plugin.store.save();
+    await this.plugin.refreshViews();
+    new Notice(this.plugin.t("notice.tripUpdated"));
+    this.close();
+  }
+}
+
+class EditDayModal extends Modal {
+  private date: string;
+  private title: string;
+  private timeZone: string;
+  private notes: string;
+
+  constructor(
+    app: App,
+    private plugin: TravelogPlannerPlugin,
+    private day: TravelDay,
+  ) {
+    super(app);
+    this.date = day.date;
+    this.title = day.title ?? "";
+    this.timeZone = day.timeZone;
+    this.notes = day.notes ?? "";
+  }
+
+  onOpen(): void {
+    this.plugin.applyDirection(this.contentEl);
+    this.contentEl.createEl("h2", { text: this.plugin.t("modal.editDay") });
+    textSetting(this.contentEl, this.plugin.t("field.date"), this.date, (value) => (this.date = value), "date");
+    textSetting(this.contentEl, this.plugin.t("field.title"), this.title, (value) => (this.title = value));
+    textSetting(this.contentEl, this.plugin.t("field.timeZone"), this.timeZone, (value) => (this.timeZone = value));
+    textAreaSetting(this.contentEl, this.plugin.t("field.notes"), this.notes, (value) => (this.notes = value));
+    new Setting(this.contentEl).addButton((button) =>
+      button
+        .setButtonText(this.plugin.t("button.save"))
+        .setCta()
+        .onClick(() => void this.submit()),
+    );
+  }
+
+  private async submit(): Promise<void> {
+    if (!validIsoDate(this.date) || !validTimeZone(this.timeZone)) {
+      new Notice(this.plugin.t("notice.invalidDay"));
+      return;
+    }
+    const duplicate = this.plugin.store.dataset.days.some(
+      (candidate) =>
+        candidate.tripId === this.day.tripId && candidate.id !== this.day.id && candidate.date === this.date,
+    );
+    if (duplicate) {
+      new Notice(this.plugin.t("notice.duplicateDay", { date: this.date }));
+      return;
+    }
+    try {
+      updateTravelDay(
+        this.plugin.store.dataset,
+        this.day.id,
+        {
+          date: this.date,
+          timeZone: this.timeZone,
+          ...(this.title.trim() ? { title: this.title.trim() } : {}),
+          ...(this.notes.trim() ? { notes: this.notes.trim() } : {}),
+        },
+        "Edited day in Obsidian",
+      );
+    } catch {
+      new Notice(this.plugin.t("notice.invalidDay"));
+      return;
+    }
+    await this.plugin.store.save();
+    await this.plugin.refreshViews();
+    new Notice(this.plugin.t("notice.dayUpdated"));
     this.close();
   }
 }
@@ -1149,22 +1347,10 @@ function relationDropdownSetting(
 }
 
 function createDays(trip: Trip): TravelDay[] {
-  const days: TravelDay[] = [];
-  const cursor = new Date(`${trip.startDate}T00:00:00Z`);
-  const end = new Date(`${trip.endDate}T00:00:00Z`);
-  let sortOrder = 0;
-  while (cursor <= end) {
-    days.push({
-      id: newId("day"),
-      tripId: trip.id,
-      date: cursor.toISOString().slice(0, 10),
-      sortOrder,
-      timeZone: trip.timeZone,
-    });
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-    sortOrder += 1;
-  }
-  return days;
+  const dataset = createEmptyDataset();
+  dataset.trips.push(trip);
+  syncTripDateRange(dataset, trip.id, trip.startDate, trip.endDate, trip.timeZone);
+  return dataset.days;
 }
 
 function nextSortOrder(dataset: TravelogDataset, dayId: string): number {
@@ -1317,6 +1503,8 @@ const transportModes = [
   "flight",
   "other",
 ] as const;
+
+const tripStatuses: Trip["status"][] = ["idea", "planning", "ready", "traveling", "completed", "archived"];
 
 function syncRouteFareExpense(dataset: TravelogDataset, item: TimelineItem): void {
   if (item.kind !== "route") return;

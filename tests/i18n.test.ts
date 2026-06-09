@@ -24,9 +24,13 @@ test("every selectable non-English language localizes the Travelog map conversio
   assert.equal(LANGUAGE_OPTIONS.length, 21);
   const english = translate("en", "button.viewMap");
   const englishOpens = translate("en", "field.opens");
+  const englishEditTrip = translate("en", "button.editTrip");
+  const englishEditDay = translate("en", "button.editDay");
   for (const { value } of LANGUAGE_OPTIONS) {
     if (value === "auto" || value === "en") continue;
     assert.notEqual(translate(value, "button.viewMap"), english, value);
     assert.notEqual(translate(value, "field.opens"), englishOpens, value);
+    assert.notEqual(translate(value, "button.editTrip"), englishEditTrip, value);
+    assert.notEqual(translate(value, "button.editDay"), englishEditDay, value);
   }
 });

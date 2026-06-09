@@ -53,6 +53,14 @@ await setSetting("Destinations", "Kyoto");
 await evaluate(`(${clickModalButton.toString()})("Create")`);
 await sleep(400);
 
+await evaluate(`(${clickPlannerButton.toString()})("Edit trip")`);
+await sleep(100);
+await setSetting("Status", "ready");
+await setSetting("End date", "2026-10-11");
+await setSetting("Notes", "Edited runtime trip");
+await evaluate(`(${clickModalButton.toString()})("Save")`);
+await sleep(400);
+
 await evaluate(`(${clickPlannerButton.toString()})("Add point")`);
 await sleep(100);
 assert.equal(await settingInputType("Start"), "time");
@@ -96,6 +104,14 @@ await setSetting("Fare (JPY)", "230");
 await evaluate(`(${clickModalButton.toString()})("Add")`);
 await sleep(400);
 
+await evaluate(`(${clickPlannerButton.toString()})("Edit day")`);
+await sleep(100);
+await setSetting("Date", "2026-10-12");
+await setSetting("Title", "Arrival day");
+await setSetting("Timezone", "Europe/Paris");
+await evaluate(`(${clickModalButton.toString()})("Save")`);
+await sleep(400);
+
 await evaluate(`(${clickPlannerButton.toString()})("View map in Travelog")`);
 await sleep(100);
 assert.equal(await evaluate('Boolean([...document.querySelectorAll(".modal-container h2")].find((heading) => heading.textContent?.trim() === "See this itinerary on a live map"))'), true);
@@ -121,10 +137,15 @@ const summary = await evaluate(`(() => {
   const route = dataset.timelineItems.find((item) => item.kind === "route");
   return {
     trips: dataset.trips.length,
+    tripStatus: dataset.trips[0]?.status,
+    tripEndDate: dataset.trips[0]?.endDate,
+    days: dataset.days.length,
+    selectedDayTitle: dataset.days.find((day) => day.title === "Arrival day")?.title,
     points: dataset.timelineItems.filter((item) => item.kind === "point").length,
     routes: dataset.timelineItems.filter((item) => item.kind === "route").length,
     delay: route?.route.delayMinutes,
     baseline: Boolean(route?.schedule.baseline),
+    routeTimeZone: route?.schedule.current.timeZone,
     changes: dataset.planChanges.length,
     pointPlannedCost: dataset.expenses.find((expense) => expense.timelineItemId === dataset.timelineItems.find((item) => item.kind === "point")?.id)?.amount,
     pointChecklistCount: dataset.checklistItems.filter((item) => item.timelineItemId === dataset.timelineItems.find((candidate) => candidate.kind === "point")?.id).length,
@@ -133,11 +154,15 @@ const summary = await evaluate(`(() => {
 })()`);
 
 assert.deepEqual(
-  { trips: summary.trips, points: summary.points, routes: summary.routes },
-  { trips: 1, points: 1, routes: 1 },
+  { trips: summary.trips, points: summary.points, routes: summary.routes, days: summary.days },
+  { trips: 1, points: 1, routes: 1, days: 3 },
 );
+assert.equal(summary.tripStatus, "ready");
+assert.equal(summary.tripEndDate, "2026-10-12");
+assert.equal(summary.selectedDayTitle, "Arrival day");
 assert.equal(summary.delay, 15);
 assert.equal(summary.baseline, true);
+assert.equal(summary.routeTimeZone, "Europe/Paris");
 assert.ok(summary.changes >= 3);
 assert.equal(summary.pointPlannedCost, 650);
 assert.equal(summary.pointChecklistCount, 2);

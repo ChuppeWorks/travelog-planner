@@ -4,9 +4,12 @@ import { test } from "node:test";
 import {
   applyRouteDelay,
   freezeTripBaseline,
+  moveTravelDay,
   scheduleWarnings,
   shiftItemAndFollowing,
+  syncTripDateRange,
   timeInZone,
+  updateTravelDay,
   validateDataset,
   zonedLocalToIso,
   type TravelogDataset,
@@ -102,4 +105,71 @@ test("local trip time converts using the trip timezone instead of the computer t
   const instant = zonedLocalToIso("2026-10-10", "09:00", "Asia/Tokyo");
   assert.equal(instant, "2026-10-10T00:00:00.000Z");
   assert.equal(timeInZone(instant, "Asia/Tokyo"), "09:00");
+});
+
+test("trip date range synchronization creates missing days and removes only empty outside days", async () => {
+  const dataset = await sample();
+  const result = syncTripDateRange(dataset, "trip_demo_kyoto", "2026-10-10", "2026-10-12", "Asia/Tokyo");
+  assert.equal(result.createdDayIds.length, 1);
+  assert.deepEqual(result.removedDayIds, []);
+  assert.deepEqual(
+    dataset.days.filter((day) => day.tripId === "trip_demo_kyoto").map((day) => [day.date, day.sortOrder]),
+    [
+      ["2026-10-10", 0],
+      ["2026-10-11", 1],
+      ["2026-10-12", 2],
+    ],
+  );
+
+  const reduced = syncTripDateRange(dataset, "trip_demo_kyoto", "2026-10-10", "2026-10-10", "Asia/Tokyo");
+  assert.equal(reduced.removedDayIds.length, 2);
+  assert.deepEqual(dataset.days.filter((day) => day.tripId === "trip_demo_kyoto").map((day) => day.date), ["2026-10-10"]);
+});
+
+test("trip date range synchronization refuses to remove a populated day", async () => {
+  const dataset = await sample();
+  const before = structuredClone(dataset.days);
+  const result = syncTripDateRange(dataset, "trip_demo_kyoto", "2026-10-11", "2026-10-11", "Asia/Tokyo");
+  assert.deepEqual(result.blockedDates, ["2026-10-10"]);
+  assert.deepEqual(dataset.days, before);
+});
+
+test("moving a travel day preserves local clock times, baseline, and a contiguous trip range", async () => {
+  const dataset = await sample();
+  const item = dataset.timelineItems.find((candidate) => candidate.dayId === "day_demo_kyoto_1")!;
+  const originalStart = item.schedule.current.start;
+  const originalLocalStart = timeInZone(originalStart, item.schedule.current.timeZone);
+
+  const result = moveTravelDay(dataset, "day_demo_kyoto_1", "2026-10-12", "Europe/Paris");
+  assert.equal(result.movedItemCount, 3);
+  assert.equal(result.expandedTripRange, true);
+  assert.equal(result.createdDayIds.length, 1);
+  assert.equal(item.schedule.baseline?.start, originalStart);
+  assert.equal(timeInZone(item.schedule.current.start, "Europe/Paris"), originalLocalStart);
+  assert.equal(item.schedule.current.timeZone, "Europe/Paris");
+  assert.deepEqual(
+    dataset.days
+      .filter((day) => day.tripId === "trip_demo_kyoto")
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((day) => day.date),
+    ["2026-10-10", "2026-10-11", "2026-10-12"],
+  );
+  assert.equal(dataset.trips[0]!.endDate, "2026-10-12");
+  assert.equal(dataset.planChanges.filter((change) => change.entityType === "timelineItem").length, 3);
+  assert.equal(dataset.planChanges.filter((change) => change.entityType === "day").length, 1);
+  assert.equal(dataset.planChanges.filter((change) => change.entityType === "trip").length, 1);
+});
+
+test("editing only travel-day metadata does not freeze unchanged item schedules", async () => {
+  const dataset = await sample();
+  updateTravelDay(dataset, "day_demo_kyoto_1", {
+    date: "2026-10-10",
+    timeZone: "Asia/Tokyo",
+    title: "Arrival day",
+    notes: "Meet at the station",
+  });
+  assert.equal(dataset.days[0]!.title, "Arrival day");
+  assert.equal(dataset.timelineItems.some((item) => item.schedule.baseline), false);
+  assert.equal(dataset.planChanges.filter((change) => change.entityType === "day").length, 1);
+  assert.equal(dataset.planChanges.filter((change) => change.entityType === "timelineItem").length, 0);
 });

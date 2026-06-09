@@ -12,6 +12,8 @@ timeline and preserves that data for future Travelog use.
 ### Shared capabilities
 
 - Create trips and dated travel days.
+- Edit trip metadata and date ranges, and edit dated travel days without
+  silently deleting populated days or overwriting the original schedule.
 - Add points and routes to one chronological timeline.
 - Store place name, custom name, address, coordinates, standardized opening
   and closing times, notes.
@@ -45,12 +47,19 @@ timeline and preserves that data for future Travelog use.
 
 ## Future Travelog paid capabilities
 
+- Create a new trip directly in Travelog or import and synchronize an existing
+  Obsidian or Notion plan.
 - Place search, live operating hours, maps, public-transit schedules.
 - Reservation email/document extraction.
 - Replanning proposals with dependency-aware impact previews and rollback.
 - Delay and disruption alerts with alternate-route suggestions.
 - Actual travel timeline, GPS/photo import, journal, sharing, and keepsakes.
 - Cross-platform sync and conflict resolution.
+- A modern onboarding and global checkout flow offering a per-trip Trip Pass
+  and a lifetime core purchase.
+
+The commercial web-app product and connector requirements are specified in
+`COMMERCIAL_WEBAPP.md`.
 
 ## Non-goals for the free MVP
 

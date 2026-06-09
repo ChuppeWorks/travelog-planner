@@ -1,5 +1,12 @@
 # Distribution
 
+## Current hold
+
+GitHub source and release artifacts may be updated for development and testing.
+Do not submit the plugin to Obsidian Community Plugins, publish the Notion
+template, or submit it to Notion Marketplace until the commercial Travelog web
+app is ready to receive and serve converted users.
+
 ## Obsidian community plugin
 
 ### Release files

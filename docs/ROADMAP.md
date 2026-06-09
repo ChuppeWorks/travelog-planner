@@ -21,7 +21,9 @@ recording rather than by withholding basic planning or export.
 ### Obsidian
 
 - Test with real desktop and mobile vaults.
-- Add drag/reorder and trip/day editing.
+- Add drag/reorder.
+- Completed: trip/day editing with protected populated days and schedule-aware
+  date/timezone moves.
 - Add a useful map panel without compromising local-first behavior.
 - Add import/export commands in the plugin UI.
 - Complete community-plugin submission.
@@ -33,6 +35,9 @@ recording rather than by withholding basic planning or export.
 - Test a clean duplicate.
 - Publish the free Marketplace template.
 
+Official Obsidian and Notion submission is intentionally deferred until the
+commercial Travelog web app is complete enough to receive converted users.
+
 ### Validation
 
 - Recruit 5-10 users planning real trips.
@@ -42,6 +47,9 @@ recording rather than by withholding basic planning or export.
 
 ## Phase 2: Travelog Trip Pass
 
+- Modern onboarding with direct creation, Obsidian import/sync, and Notion
+  import/sync as equal starting paths.
+- Global checkout for a per-trip Trip Pass and lifetime core entitlement.
 - Place search, coordinates, live and exceptional opening hours.
 - Transit and route lookup with provider references.
 - Preflight validation of the full itinerary.
@@ -49,6 +57,8 @@ recording rather than by withholding basic planning or export.
 - Delay, cancellation, weather, and closure alerts.
 - Offline mobile trip package and booking document wallet.
 - Collaborative current plan and group notifications.
+
+See `COMMERCIAL_WEBAPP.md` for release gates and synchronization behavior.
 
 ## Phase 3: Travel record and lifetime value
 

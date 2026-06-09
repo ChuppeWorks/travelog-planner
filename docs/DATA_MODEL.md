@@ -48,3 +48,15 @@ items by 20 minutes" without destroying the user's original intent.
    optional fields.
 4. Derived warnings and route calculations are not canonical data.
 5. Baseline and actual data must never be silently overwritten by an import.
+
+## Future synchronization envelope
+
+Schema `1.0.0` is the portable planning payload. Ongoing Travelog
+synchronization will wrap those entities with origin, revision, deletion
+tombstone, and connector-cursor metadata. This sync metadata must not replace
+stable canonical IDs or require users to surrender their usable Obsidian or
+Notion copy.
+
+Conflicts are resolved per field. Independent edits may merge automatically,
+but competing edits to the same field, any destructive import, and any change
+to `baseline` or `actual` require an explicit preview or user decision.

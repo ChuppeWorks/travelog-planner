@@ -1,4 +1,22 @@
 type PartialDictionary = Record<string, string>;
+type ExtraLanguage =
+  | "zh-CN"
+  | "zh-TW"
+  | "es"
+  | "fr"
+  | "de"
+  | "it"
+  | "pt-BR"
+  | "nl"
+  | "pl"
+  | "ru"
+  | "uk"
+  | "tr"
+  | "ar"
+  | "hi"
+  | "id"
+  | "th"
+  | "vi";
 
 const transportKeys = [
   "walk",
@@ -21,7 +39,7 @@ function locale(core: PartialDictionary, transport: readonly string[]): PartialD
   };
 }
 
-export const extraDictionaries = {
+export const extraDictionaries: Record<ExtraLanguage, PartialDictionary> = {
   "zh-CN": locale(
     {
       "command.open": "打开规划器",
@@ -681,4 +699,35 @@ export const extraDictionaries = {
     },
     ["Đi bộ", "Xe đạp", "Ô tô", "Taxi", "Xe buýt", "Tàu điện", "Tàu điện ngầm", "Tàu hỏa", "Phà", "Chuyến bay", "Khác"],
   ),
-} satisfies Record<string, PartialDictionary>;
+};
+
+const editLabels: Record<ExtraLanguage, readonly [string, string, string, string]> = {
+  "zh-CN": ["编辑旅行", "编辑日期", "状态", "日期"],
+  "zh-TW": ["編輯旅行", "編輯日期", "狀態", "日期"],
+  es: ["Editar viaje", "Editar día", "Estado", "Fecha"],
+  fr: ["Modifier le voyage", "Modifier la journée", "Statut", "Date"],
+  de: ["Reise bearbeiten", "Tag bearbeiten", "Status", "Datum"],
+  it: ["Modifica viaggio", "Modifica giorno", "Stato", "Data"],
+  "pt-BR": ["Editar viagem", "Editar dia", "Status", "Data"],
+  nl: ["Reis bewerken", "Dag bewerken", "Status", "Datum"],
+  pl: ["Edytuj podróż", "Edytuj dzień", "Status", "Data"],
+  ru: ["Изменить поездку", "Изменить день", "Статус", "Дата"],
+  uk: ["Редагувати подорож", "Редагувати день", "Статус", "Дата"],
+  tr: ["Geziyi düzenle", "Günü düzenle", "Durum", "Tarih"],
+  ar: ["تعديل الرحلة", "تعديل اليوم", "الحالة", "التاريخ"],
+  hi: ["यात्रा संपादित करें", "दिन संपादित करें", "स्थिति", "तारीख"],
+  id: ["Edit perjalanan", "Edit hari", "Status", "Tanggal"],
+  th: ["แก้ไขทริป", "แก้ไขวัน", "สถานะ", "วันที่"],
+  vi: ["Chỉnh sửa chuyến đi", "Chỉnh sửa ngày", "Trạng thái", "Ngày"],
+};
+
+for (const [language, [editTrip, editDay, status, date]] of Object.entries(editLabels)) {
+  Object.assign(extraDictionaries[language as ExtraLanguage], {
+    "button.editTrip": editTrip,
+    "button.editDay": editDay,
+    "modal.editTrip": editTrip,
+    "modal.editDay": editDay,
+    "field.status": status,
+    "field.date": date,
+  });
+}

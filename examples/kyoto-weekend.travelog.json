@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0.0",
+  "trips": [
+    {
+      "id": "trip_demo_kyoto",
+      "name": "Demo Kyoto Weekend",
+      "status": "planning",
+      "startDate": "2026-10-10",
+      "endDate": "2026-10-11",
+      "timeZone": "Asia/Tokyo",
+      "baseCurrency": "JPY",
+      "destinations": ["Kyoto"],
+      "notes": "Delete this demo after testing.",
+      "createdAt": "2026-06-09T00:00:00.000Z",
+      "updatedAt": "2026-06-09T00:00:00.000Z"
+    }
+  ],
+  "days": [
+    {
+      "id": "day_demo_kyoto_1",
+      "tripId": "trip_demo_kyoto",
+      "date": "2026-10-10",
+      "sortOrder": 0,
+      "timeZone": "Asia/Tokyo",
+      "title": "East Kyoto"
+    },
+    {
+      "id": "day_demo_kyoto_2",
+      "tripId": "trip_demo_kyoto",
+      "date": "2026-10-11",
+      "sortOrder": 1,
+      "timeZone": "Asia/Tokyo",
+      "title": "Arashiyama"
+    }
+  ],
+  "timelineItems": [
+    {
+      "id": "point_demo_station",
+      "tripId": "trip_demo_kyoto",
+      "dayId": "day_demo_kyoto_1",
+      "kind": "point",
+      "sortOrder": 0,
+      "title": "Kyoto Station",
+      "schedule": {
+        "current": {
+          "start": "2026-10-10T09:00:00+09:00",
+          "end": "2026-10-10T09:20:00+09:00",
+          "timeZone": "Asia/Tokyo"
+        }
+      },
+      "place": {
+        "name": "Kyoto Station",
+        "address": "Higashishiokoji Kamadonocho, Kyoto",
+        "coordinates": { "latitude": 34.985849, "longitude": 135.758767 }
+      },
+      "createdAt": "2026-06-09T00:00:00.000Z",
+      "updatedAt": "2026-06-09T00:00:00.000Z"
+    },
+    {
+      "id": "route_demo_bus",
+      "tripId": "trip_demo_kyoto",
+      "dayId": "day_demo_kyoto_1",
+      "kind": "route",
+      "sortOrder": 1,
+      "title": "Bus to Gion",
+      "schedule": {
+        "current": {
+          "start": "2026-10-10T09:20:00+09:00",
+          "end": "2026-10-10T09:45:00+09:00",
+          "timeZone": "Asia/Tokyo"
+        }
+      },
+      "route": {
+        "fromPointId": "point_demo_station",
+        "toPointId": "point_demo_gion",
+        "mode": "bus",
+        "lineName": "206",
+        "operator": "Kyoto City Bus",
+        "delayMinutes": 0,
+        "fare": {
+          "amount": 230,
+          "currency": "JPY"
+        }
+      },
+      "notes": "Check current timetable.",
+      "createdAt": "2026-06-09T00:00:00.000Z",
+      "updatedAt": "2026-06-09T00:00:00.000Z"
+    },
+    {
+      "id": "point_demo_gion",
+      "tripId": "trip_demo_kyoto",
+      "dayId": "day_demo_kyoto_1",
+      "kind": "point",
+      "sortOrder": 2,
+      "title": "Gion walk",
+      "schedule": {
+        "current": {
+          "start": "2026-10-10T09:45:00+09:00",
+          "end": "2026-10-10T11:30:00+09:00",
+          "timeZone": "Asia/Tokyo"
+        }
+      },
+      "place": {
+        "name": "Gion",
+        "address": "Gionmachi, Higashiyama Ward, Kyoto",
+        "coordinates": { "latitude": 35.003707, "longitude": 135.778722 }
+      },
+      "createdAt": "2026-06-09T00:00:00.000Z",
+      "updatedAt": "2026-06-09T00:00:00.000Z"
+    }
+  ],
+  "checklistItems": [
+    {
+      "id": "check_demo_card",
+      "tripId": "trip_demo_kyoto",
+      "dayId": "day_demo_kyoto_1",
+      "timelineItemId": "point_demo_station",
+      "label": "Load transit card",
+      "phase": "during",
+      "completed": false,
+      "sortOrder": 0
+    }
+  ],
+  "expenses": [
+    {
+      "id": "expense_demo_bus",
+      "tripId": "trip_demo_kyoto",
+      "dayId": "day_demo_kyoto_1",
+      "timelineItemId": "route_demo_bus",
+      "phase": "planned",
+      "category": "transport",
+      "amount": 230,
+      "currency": "JPY"
+    }
+  ],
+  "attachments": [],
+  "planChanges": []
+}

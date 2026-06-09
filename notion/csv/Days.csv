@@ -1,0 +1,3 @@
+Name,id,tripId,Date,Sort order,Timezone,Notes,Travelog JSON
+East Kyoto,day_demo_kyoto_1,trip_demo_kyoto,2026-10-10,0,Asia/Tokyo,,"{""id"":""day_demo_kyoto_1"",""tripId"":""trip_demo_kyoto"",""date"":""2026-10-10"",""sortOrder"":0,""timeZone"":""Asia/Tokyo"",""title"":""East Kyoto""}"
+Arashiyama,day_demo_kyoto_2,trip_demo_kyoto,2026-10-11,1,Asia/Tokyo,,"{""id"":""day_demo_kyoto_2"",""tripId"":""trip_demo_kyoto"",""date"":""2026-10-11"",""sortOrder"":1,""timeZone"":""Asia/Tokyo"",""title"":""Arashiyama""}"

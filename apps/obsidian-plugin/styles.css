@@ -1,0 +1,82 @@
+.travelog-planner {
+  --travelog-point: var(--color-green);
+  --travelog-route: var(--color-blue);
+  padding: 12px;
+}
+
+.travelog-planner__header,
+.travelog-planner__toolbar,
+.travelog-planner__item-header,
+.travelog-planner__item-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.travelog-planner__header {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.travelog-planner__toolbar {
+  margin: 12px 0;
+}
+
+.travelog-planner select {
+  max-width: 100%;
+}
+
+.travelog-planner__timeline {
+  border-left: 2px solid var(--background-modifier-border);
+  margin: 16px 0 16px 8px;
+  padding-left: 16px;
+}
+
+.travelog-planner__item {
+  background: var(--background-secondary);
+  border-radius: 8px;
+  margin: 0 0 12px;
+  padding: 10px;
+  position: relative;
+}
+
+.travelog-planner__item::before {
+  background: var(--travelog-point);
+  border: 3px solid var(--background-primary);
+  border-radius: 50%;
+  content: "";
+  height: 10px;
+  left: -23px;
+  position: absolute;
+  top: 14px;
+  width: 10px;
+}
+
+.travelog-planner__item--route::before {
+  background: var(--travelog-route);
+  border-radius: 2px;
+}
+
+.travelog-planner__item-header {
+  justify-content: space-between;
+}
+
+.travelog-planner__kind,
+.travelog-planner__muted {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.travelog-planner__warnings {
+  background: rgba(var(--color-orange-rgb), 0.12);
+  border-left: 3px solid var(--color-orange);
+  margin: 12px 0;
+  padding: 8px 12px;
+}
+
+.travelog-planner__empty {
+  color: var(--text-muted);
+  padding: 24px 0;
+  text-align: center;
+}

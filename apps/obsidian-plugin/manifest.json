@@ -1,0 +1,10 @@
+{
+  "id": "travelog-planner",
+  "name": "Travelog Planner",
+  "version": "0.1.0",
+  "minAppVersion": "1.6.0",
+  "description": "Plan trips as a chronological timeline of places and routes while preserving the original plan.",
+  "author": "ChuppeWorks",
+  "authorUrl": "https://github.com/ChuppeWorks",
+  "isDesktopOnly": false
+}

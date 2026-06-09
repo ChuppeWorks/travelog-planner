@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://travelog.example/schema/travelog-1.0.0.json",
+  "title": "Travelog Dataset",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "trips",
+    "days",
+    "timelineItems",
+    "checklistItems",
+    "expenses",
+    "attachments",
+    "planChanges"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0.0" },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "trips": { "type": "array", "items": { "$ref": "#/$defs/trip" } },
+    "days": { "type": "array", "items": { "$ref": "#/$defs/day" } },
+    "timelineItems": { "type": "array", "items": { "$ref": "#/$defs/timelineItem" } },
+    "checklistItems": { "type": "array", "items": { "$ref": "#/$defs/checklist" } },
+    "expenses": { "type": "array", "items": { "$ref": "#/$defs/expense" } },
+    "attachments": { "type": "array", "items": { "$ref": "#/$defs/attachment" } },
+    "planChanges": { "type": "array", "items": { "$ref": "#/$defs/planChange" } }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "id": { "type": "string", "minLength": 3 },
+    "date": { "type": "string", "format": "date" },
+    "dateTimeOrNull": { "type": ["string", "null"], "format": "date-time" },
+    "timeWindow": {
+      "type": "object",
+      "required": ["start", "end", "timeZone"],
+      "properties": {
+        "start": { "$ref": "#/$defs/dateTimeOrNull" },
+        "end": { "$ref": "#/$defs/dateTimeOrNull" },
+        "timeZone": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "schedule": {
+      "type": "object",
+      "required": ["current"],
+      "properties": {
+        "baseline": { "$ref": "#/$defs/timeWindow" },
+        "current": { "$ref": "#/$defs/timeWindow" },
+        "actual": { "$ref": "#/$defs/timeWindow" },
+        "actualDelayMinutes": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "money": {
+      "type": "object",
+      "required": ["amount", "currency"],
+      "properties": {
+        "amount": { "type": "number" },
+        "currency": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "route": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "fromPointId": { "$ref": "#/$defs/id" },
+        "toPointId": { "$ref": "#/$defs/id" },
+        "mode": { "enum": ["walk", "bicycle", "car", "taxi", "bus", "tram", "subway", "train", "ferry", "flight", "other"] },
+        "lineName": { "type": "string" },
+        "operator": { "type": "string" },
+        "delayMinutes": { "type": "number" },
+        "fare": { "$ref": "#/$defs/money" },
+        "reservationRef": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "trip": {
+      "type": "object",
+      "required": ["id", "name", "status", "startDate", "endDate", "timeZone", "baseCurrency", "destinations", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "status": { "enum": ["idea", "planning", "ready", "traveling", "completed", "archived"] },
+        "startDate": { "$ref": "#/$defs/date" },
+        "endDate": { "$ref": "#/$defs/date" },
+        "timeZone": { "type": "string" },
+        "baseCurrency": { "type": "string" },
+        "destinations": { "type": "array", "items": { "type": "string" } },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": true
+    },
+    "day": {
+      "type": "object",
+      "required": ["id", "tripId", "date", "sortOrder", "timeZone"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tripId": { "$ref": "#/$defs/id" },
+        "date": { "$ref": "#/$defs/date" },
+        "sortOrder": { "type": "number" },
+        "timeZone": { "type": "string" },
+        "title": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "timelineItem": {
+      "type": "object",
+      "required": ["id", "tripId", "dayId", "kind", "sortOrder", "title", "schedule", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tripId": { "$ref": "#/$defs/id" },
+        "dayId": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["point", "route"] },
+        "sortOrder": { "type": "number" },
+        "title": { "type": "string" },
+        "schedule": { "$ref": "#/$defs/schedule" },
+        "place": { "type": "object", "additionalProperties": true },
+        "route": { "$ref": "#/$defs/route" },
+        "notes": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": true
+    },
+    "checklist": {
+      "type": "object",
+      "required": ["id", "tripId", "label", "phase", "completed", "sortOrder"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tripId": { "$ref": "#/$defs/id" },
+        "dayId": { "$ref": "#/$defs/id" },
+        "timelineItemId": { "$ref": "#/$defs/id" },
+        "label": { "type": "string" },
+        "phase": { "enum": ["before", "during", "after"] },
+        "completed": { "type": "boolean" },
+        "sortOrder": { "type": "number" }
+      },
+      "additionalProperties": true
+    },
+    "expense": {
+      "type": "object",
+      "required": ["id", "tripId", "phase", "category", "amount", "currency"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tripId": { "$ref": "#/$defs/id" },
+        "dayId": { "$ref": "#/$defs/id" },
+        "timelineItemId": { "$ref": "#/$defs/id" },
+        "phase": { "enum": ["planned", "actual"] },
+        "category": { "enum": ["transport", "lodging", "food", "activity", "shopping", "fee", "other"] },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "payer": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "attachment": {
+      "type": "object",
+      "required": ["id", "tripId", "kind", "url"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tripId": { "$ref": "#/$defs/id" },
+        "dayId": { "$ref": "#/$defs/id" },
+        "timelineItemId": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["booking", "ticket", "photo", "receipt", "document", "link"] },
+        "url": { "type": "string" },
+        "provider": { "enum": ["google-photos", "local", "web", "other"] },
+        "providerId": { "type": "string" },
+        "caption": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "planChange": {
+      "type": "object",
+      "required": ["id", "tripId", "entityType", "entityId", "changedAt", "source", "before", "after"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "tripId": { "$ref": "#/$defs/id" },
+        "entityType": { "enum": ["trip", "day", "timelineItem"] },
+        "entityId": { "$ref": "#/$defs/id" },
+        "changedAt": { "type": "string", "format": "date-time" },
+        "source": { "enum": ["user", "optimization", "provider-update", "import"] },
+        "reason": { "type": "string" },
+        "before": { "type": "object" },
+        "after": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

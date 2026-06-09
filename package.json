@@ -1,0 +1,33 @@
+{
+  "name": "travelog-planner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Free Obsidian and Notion travel planning tools built on a Travelog-compatible schema.",
+  "author": "ChuppeWorks",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChuppeWorks/travelog-planner.git"
+  },
+  "homepage": "https://github.com/ChuppeWorks/travelog-planner",
+  "packageManager": "pnpm@10.30.2",
+  "scripts": {
+    "build": "pnpm --filter @travelog/schema build && pnpm --filter @travelog/interchange build && pnpm --filter travelog-obsidian build",
+    "check": "pnpm typecheck && pnpm test && pnpm validate:notion && pnpm validate:release",
+    "typecheck": "pnpm --filter @travelog/schema typecheck && pnpm --filter @travelog/interchange typecheck && pnpm --filter travelog-obsidian typecheck",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "generate:notion": "node --import tsx scripts/generate-notion-sample.ts",
+    "export:notion": "node --import tsx scripts/export-notion.ts",
+    "import:notion": "node --import tsx scripts/import-notion.ts",
+    "verify:obsidian-runtime": "node scripts/verify-obsidian-runtime.mjs",
+    "validate:notion": "node --import tsx scripts/validate-notion-template.ts",
+    "validate:release": "node --import tsx scripts/validate-release.ts",
+    "package": "node scripts/package-release.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.8.3"
+  }
+}

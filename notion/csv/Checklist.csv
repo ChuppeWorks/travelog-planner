@@ -1,0 +1,2 @@
+Name,id,tripId,dayId,timelineItemId,Phase,Completed,Sort order,Travelog JSON
+Load transit card,check_demo_card,trip_demo_kyoto,day_demo_kyoto_1,point_demo_station,during,false,0,"{""id"":""check_demo_card"",""tripId"":""trip_demo_kyoto"",""dayId"":""day_demo_kyoto_1"",""timelineItemId"":""point_demo_station"",""label"":""Load transit card"",""phase"":""during"",""completed"":false,""sortOrder"":0}"

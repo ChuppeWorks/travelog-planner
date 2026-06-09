@@ -1,0 +1,2 @@
+Name,id,tripId,dayId,timelineItemId,Phase,Category,Amount,Currency,Payer,Notes,Travelog JSON
+transport 230 JPY,expense_demo_bus,trip_demo_kyoto,day_demo_kyoto_1,route_demo_bus,planned,transport,230,JPY,,,"{""id"":""expense_demo_bus"",""tripId"":""trip_demo_kyoto"",""dayId"":""day_demo_kyoto_1"",""timelineItemId"":""route_demo_bus"",""phase"":""planned"",""category"":""transport"",""amount"":230,""currency"":""JPY""}"

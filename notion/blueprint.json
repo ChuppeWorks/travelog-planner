@@ -1,0 +1,137 @@
+{
+  "schemaVersion": "1.0.0",
+  "databases": {
+    "Trips": {
+      "file": "csv/Trips.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "Status": "select",
+        "Start date": "date",
+        "End date": "date",
+        "Timezone": "text",
+        "Base currency": "select",
+        "Destinations": "multi_select",
+        "Notes": "rich_text",
+        "Created at": "date",
+        "Updated at": "date",
+        "Travelog JSON": "text"
+      }
+    },
+    "Days": {
+      "file": "csv/Days.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "tripId": "text",
+        "Date": "date",
+        "Sort order": "number",
+        "Timezone": "text",
+        "Notes": "rich_text",
+        "Travelog JSON": "text"
+      },
+      "relations": { "Trip": "Trips" }
+    },
+    "Timeline": {
+      "file": "csv/Timeline.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "tripId": "text",
+        "dayId": "text",
+        "Kind": "select",
+        "Sort order": "number",
+        "Current start": "date",
+        "Current end": "date",
+        "Timezone": "text",
+        "Baseline start": "date",
+        "Baseline end": "date",
+        "Actual start": "date",
+        "Actual end": "date",
+        "Actual delay minutes": "number",
+        "Place name": "rich_text",
+        "Address": "rich_text",
+        "Latitude": "number",
+        "Longitude": "number",
+        "Opening hours": "rich_text",
+        "Transport mode": "select",
+        "Line": "rich_text",
+        "Operator": "rich_text",
+        "Delay minutes": "number",
+        "Fare amount": "number",
+        "Fare currency": "select",
+        "From point ID": "text",
+        "To point ID": "text",
+        "Notes": "rich_text",
+        "Travelog JSON": "text"
+      },
+      "relations": { "Trip": "Trips", "Day": "Days" }
+    },
+    "Checklist": {
+      "file": "csv/Checklist.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "tripId": "text",
+        "dayId": "text",
+        "timelineItemId": "text",
+        "Phase": "select",
+        "Completed": "checkbox",
+        "Sort order": "number",
+        "Travelog JSON": "text"
+      },
+      "relations": { "Trip": "Trips", "Day": "Days", "Timeline item": "Timeline" }
+    },
+    "Expenses": {
+      "file": "csv/Expenses.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "tripId": "text",
+        "dayId": "text",
+        "timelineItemId": "text",
+        "Phase": "select",
+        "Category": "select",
+        "Amount": "number",
+        "Currency": "select",
+        "Payer": "rich_text",
+        "Notes": "rich_text",
+        "Travelog JSON": "text"
+      },
+      "relations": { "Trip": "Trips", "Day": "Days", "Timeline item": "Timeline" }
+    },
+    "Attachments": {
+      "file": "csv/Attachments.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "tripId": "text",
+        "dayId": "text",
+        "timelineItemId": "text",
+        "Kind": "select",
+        "URL": "url",
+        "Provider": "select",
+        "Provider ID": "text",
+        "Travelog JSON": "text"
+      },
+      "relations": { "Trip": "Trips", "Day": "Days", "Timeline item": "Timeline" }
+    },
+    "Plan Changes": {
+      "file": "csv/Plan Changes.csv",
+      "properties": {
+        "Name": "title",
+        "id": "text",
+        "tripId": "text",
+        "entityType": "select",
+        "entityId": "text",
+        "Changed at": "date",
+        "Source": "select",
+        "Reason": "rich_text",
+        "Before JSON": "text",
+        "After JSON": "text",
+        "Travelog JSON": "text"
+      },
+      "relations": { "Trip": "Trips", "Timeline item": "Timeline" }
+    }
+  }
+}

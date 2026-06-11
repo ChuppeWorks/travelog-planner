@@ -32,7 +32,7 @@ export type NotionTables = Record<NotionTableName, string>;
 const headers: Record<NotionTableName, string[]> = {
   Trips: ["Name", "id", "Status", "Start date", "End date", "Timezone", "Base currency", "Destinations", "Notes", "Created at", "Updated at", "Travelog JSON"],
   Days: ["Name", "id", "tripId", "Date", "Sort order", "Timezone", "Notes", "Travelog JSON"],
-  Timeline: ["Name", "id", "tripId", "dayId", "Kind", "Sort order", "Current start", "Current end", "Timezone", "Baseline start", "Baseline end", "Actual start", "Actual end", "Actual delay minutes", "Place name", "Address", "Latitude", "Longitude", "Opens", "Closes", "Transport mode", "Line", "Operator", "Delay minutes", "Fare amount", "Fare currency", "From point ID", "To point ID", "Notes", "Travelog JSON"],
+  Timeline: ["Name", "id", "tripId", "dayId", "Kind", "Sort order", "Current start", "Current end", "Timezone", "Baseline start", "Baseline end", "Actual start", "Actual end", "Actual delay minutes", "Place name", "Original name", "Google translated name", "Google name language", "Name display", "Address", "Latitude", "Longitude", "Opens", "Closes", "Transport mode", "Line", "Operator", "Delay minutes", "Fare amount", "Fare currency", "From point ID", "To point ID", "Notes", "Travelog JSON"],
   Checklist: ["Name", "id", "tripId", "dayId", "timelineItemId", "Phase", "Completed", "Sort order", "Travelog JSON"],
   Expenses: ["Name", "id", "tripId", "dayId", "timelineItemId", "Phase", "Category", "Amount", "Currency", "Payer", "Notes", "Travelog JSON"],
   Attachments: ["Name", "id", "tripId", "dayId", "timelineItemId", "Kind", "URL", "Provider", "Provider ID", "Travelog JSON"],
@@ -87,13 +87,17 @@ function timelineRow(item: TimelineItem, dayDate: string | undefined): CsvRow {
   const place = item.kind === "point" ? item.place : undefined;
   const route = item.kind === "route" ? item.route : undefined;
   const openingPeriod = openingPeriodForDate(place, dayDate);
+  const googleName = place?.localizedNames?.find((name) => name.provider === "google-places") ?? place?.localizedNames?.[0];
   return {
     Name: item.title, id: item.id, tripId: item.tripId, dayId: item.dayId, Kind: item.kind,
     "Sort order": String(item.sortOrder), "Current start": item.schedule.current.start ?? "",
     "Current end": item.schedule.current.end ?? "", Timezone: item.schedule.current.timeZone,
     "Baseline start": item.schedule.baseline?.start ?? "", "Baseline end": item.schedule.baseline?.end ?? "",
     "Actual start": item.schedule.actual?.start ?? "", "Actual end": item.schedule.actual?.end ?? "",
-    "Actual delay minutes": optional(item.schedule.actualDelayMinutes), "Place name": place?.name ?? "", Address: place?.address ?? "",
+    "Actual delay minutes": optional(item.schedule.actualDelayMinutes), "Place name": place?.name ?? "",
+    "Original name": place?.originalName?.text ?? "", "Google translated name": googleName?.text ?? "",
+    "Google name language": googleName?.languageCode ?? "", "Name display": place?.nameDisplayPreference ?? "",
+    Address: place?.address ?? "",
     Latitude: optional(place?.coordinates?.latitude), Longitude: optional(place?.coordinates?.longitude),
     Opens: openingPeriod?.opens ?? "", Closes: openingPeriod?.closes ?? "",
     "Transport mode": route?.mode ?? "", Line: route?.lineName ?? "",
@@ -202,6 +206,9 @@ function parseTimeline(row: CsvRow, dayDates: ReadonlyMap<string, string>): Time
   }
   const place: Partial<PlaceDetails> = base.kind === "point" && base.place ? { ...base.place } : {};
   delete place.name;
+  delete place.originalName;
+  delete place.nameDisplayPreference;
+  delete place.customName;
   delete place.address;
   delete place.coordinates;
   delete place.openingHoursText;
@@ -211,10 +218,17 @@ function parseTimeline(row: CsvRow, dayDates: ReadonlyMap<string, string>): Time
     dayDates.get(row.dayId!),
     base.kind === "point" ? base.place : undefined,
   );
+  const localizedNames = notionLocalizedNames(row, base.kind === "point" ? base.place : undefined);
   return {
     ...common, kind: "point", place: {
       ...place,
       name: row["Place name"] || (base.kind === "point" && base.place ? base.place.name : row.Name!),
+      ...(row["Original name"] ? { originalName: { text: row["Original name"] } } : {}),
+      ...(localizedNames.length ? { localizedNames } : {}),
+      ...(isNameDisplayPreference(row["Name display"]) ? { nameDisplayPreference: row["Name display"] } : {}),
+      ...(row.Name && (base.kind === "point" && base.place && (base.place.customName || row.Name !== base.title))
+        ? { customName: row.Name }
+        : {}),
       ...(row.Address ? { address: row.Address } : {}),
       ...(row.Latitude !== "" && row.Longitude !== "" ? { coordinates: { latitude: number(row.Latitude), longitude: number(row.Longitude) } } : {}),
       ...openingHours,
@@ -327,4 +341,19 @@ function openingFields(place: PlaceDetails | undefined): Pick<PlaceDetails, "ope
     ...(place?.openingHoursText ? { openingHoursText: place.openingHoursText } : {}),
     ...(place?.openingPeriods?.length ? { openingPeriods: place.openingPeriods } : {}),
   };
+}
+
+function notionLocalizedNames(row: CsvRow, basePlace: PlaceDetails | undefined): NonNullable<PlaceDetails["localizedNames"]> {
+  const text = row["Google translated name"]?.trim() ?? "";
+  const languageCode = row["Google name language"]?.trim() ?? "";
+  const preserved = (basePlace?.localizedNames ?? []).filter(
+    (name) => !languageCode || name.languageCode !== languageCode || name.provider !== "google-places",
+  );
+  return text && languageCode
+    ? [...preserved, { text, languageCode, provider: "google-places" }]
+    : preserved;
+}
+
+function isNameDisplayPreference(value: string | undefined): value is NonNullable<PlaceDetails["nameDisplayPreference"]> {
+  return value === "original" || value === "localized" || value === "custom";
 }

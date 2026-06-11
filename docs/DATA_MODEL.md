@@ -40,6 +40,21 @@ items by 20 minutes" without destroying the user's original intent.
 - Coordinates use decimal WGS84 latitude and longitude.
 - Provider-specific IDs are references, never canonical identity.
 
+## Place names
+
+Places preserve several names instead of overwriting one string:
+
+- `name`: backward-compatible canonical/search fallback;
+- `originalName`: user-confirmed original or local-script name;
+- `localizedNames`: provider translations keyed by language and provider;
+- `customName`: the traveler's own label;
+- `nameDisplayPreference`: `original`, `localized`, or `custom`.
+
+Google Places returns the requested-language `displayName`, but not a complete
+authoritative original-and-translated name list in one response. Travelog
+therefore keeps the search text as an editable original-name candidate and
+never deletes other stored names when the display choice changes.
+
 ## Compatibility rules
 
 1. IDs are stable across Obsidian, Notion, and future Travelog imports.

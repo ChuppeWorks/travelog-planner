@@ -75,8 +75,19 @@ export interface OpeningPeriod {
   closes: string;
 }
 
+export interface LocalizedPlaceName {
+  text: string;
+  languageCode: string;
+  provider?: string;
+}
+
+export type PlaceNameDisplayPreference = "original" | "localized" | "custom";
+
 export interface PlaceDetails {
   name: string;
+  originalName?: { text: string; languageCode?: string };
+  localizedNames?: LocalizedPlaceName[];
+  nameDisplayPreference?: PlaceNameDisplayPreference;
   customName?: string;
   address?: string;
   coordinates?: Coordinates;

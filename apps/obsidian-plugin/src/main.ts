@@ -18,6 +18,7 @@ import {
   freezeTripBaseline,
   newId,
   nowIso,
+  placeDisplayName,
   scheduleWarnings,
   shiftItemAndFollowing,
   syncTripDateRange,
@@ -28,6 +29,7 @@ import {
   type TimelineItem,
   type TransportMode,
   type OpeningPeriod,
+  type PlaceNameDisplayPreference,
   type ScheduleWarning,
   type TravelDay,
   type TravelogDataset,
@@ -37,6 +39,7 @@ import { datasetToNotionTables, NOTION_TABLE_FILES } from "../../../packages/int
 import {
   LANGUAGE_OPTIONS,
   isRtlLanguage,
+  resolveLanguage,
   translate,
   type LanguageSetting,
   type TranslationKey,
@@ -314,7 +317,11 @@ class TravelogPlannerView extends ItemView {
       cls: `travelog-planner__item travelog-planner__item--${item.kind}`,
     });
     const header = card.createDiv({ cls: "travelog-planner__item-header" });
-    header.createEl("strong", { text: item.title });
+    header.createEl("strong", {
+      text: item.kind === "point"
+        ? placeDisplayName(item.place, resolveLanguage(this.plugin.settings.language, globalThis.navigator?.language ?? "en"))
+        : item.title,
+    });
     header.createSpan({
       cls: "travelog-planner__kind",
       text: this.plugin.t(item.kind === "point" ? "item.pointKind" : "item.routeKind"),
@@ -758,6 +765,10 @@ class EditDayModal extends Modal {
 
 class CreateItemModal extends Modal {
   private title = "";
+  private originalName = "";
+  private localizedName = "";
+  private localizedLanguage = "";
+  private nameDisplayPreference: PlaceNameDisplayPreference = "custom";
   private start = "";
   private end = "";
   private notes = "";
@@ -783,6 +794,7 @@ class CreateItemModal extends Modal {
     private kind: "point" | "route",
   ) {
     super(app);
+    this.localizedLanguage = resolveLanguage(plugin.settings.language, globalThis.navigator?.language ?? "en");
   }
 
   onOpen(): void {
@@ -793,6 +805,17 @@ class CreateItemModal extends Modal {
     textSetting(this.contentEl, this.plugin.t("field.start"), "", (value) => (this.start = value), "time");
     textSetting(this.contentEl, this.plugin.t("field.end"), "", (value) => (this.end = value), "time");
     if (this.kind === "point") {
+      textSetting(this.contentEl, this.plugin.t("field.originalName"), "", (value) => (this.originalName = value), "text", this.plugin.t("desc.placeNames"));
+      textSetting(this.contentEl, this.plugin.t("field.localizedName"), "", (value) => (this.localizedName = value));
+      textSetting(this.contentEl, this.plugin.t("field.localizedLanguage"), this.localizedLanguage, (value) => (this.localizedLanguage = value));
+      dropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.nameDisplay"),
+        nameDisplayPreferences,
+        this.nameDisplayPreference,
+        (value) => (this.nameDisplayPreference = value as PlaceNameDisplayPreference),
+        (value) => this.plugin.t(`nameDisplay.${value}` as TranslationKey),
+      );
       textSetting(this.contentEl, this.plugin.t("field.address"), "", (value) => (this.address = value));
       textSetting(this.contentEl, this.plugin.t("field.latitude"), "", (value) => (this.latitude = value), "number");
       textSetting(this.contentEl, this.plugin.t("field.longitude"), "", (value) => (this.longitude = value), "number");
@@ -901,7 +924,13 @@ class CreateItemModal extends Modal {
             ...common,
             kind: "point",
             place: {
-              name: this.title.trim(),
+              name: this.originalName.trim() || this.localizedName.trim() || this.title.trim(),
+              customName: this.title.trim(),
+              ...(this.originalName.trim() ? { originalName: { text: this.originalName.trim() } } : {}),
+              ...(this.localizedName.trim() && this.localizedLanguage.trim()
+                ? { localizedNames: [{ text: this.localizedName.trim(), languageCode: this.localizedLanguage.trim(), provider: "google-places" }] }
+                : {}),
+              nameDisplayPreference: this.nameDisplayPreference,
               ...(this.address.trim() ? { address: this.address.trim() } : {}),
               ...(validCoordinates(latitude, longitude) ? { coordinates: { latitude, longitude } } : {}),
               ...(openingPeriod ? { openingHoursText: `${openingPeriod.opens}-${openingPeriod.closes}` } : {}),
@@ -956,6 +985,10 @@ class CreateItemModal extends Modal {
 
 class EditItemModal extends Modal {
   private title: string;
+  private originalName = "";
+  private localizedName = "";
+  private localizedLanguage = "";
+  private nameDisplayPreference: PlaceNameDisplayPreference = "custom";
   private start: string;
   private end: string;
   private notes: string;
@@ -992,6 +1025,11 @@ class EditItemModal extends Modal {
       .map((candidate) => candidate.label)
       .join(", ");
     if (item.kind === "point") {
+      this.originalName = item.place.originalName?.text ?? item.place.name;
+      const localized = item.place.localizedNames?.find((name) => name.provider === "google-places") ?? item.place.localizedNames?.[0];
+      this.localizedName = localized?.text ?? "";
+      this.localizedLanguage = localized?.languageCode ?? resolveLanguage(plugin.settings.language, globalThis.navigator?.language ?? "en");
+      this.nameDisplayPreference = item.place.nameDisplayPreference ?? "custom";
       this.latitude = item.place.coordinates ? String(item.place.coordinates.latitude) : "";
       this.longitude = item.place.coordinates ? String(item.place.coordinates.longitude) : "";
       const day = plugin.store.dataset.days.find((candidate) => candidate.id === item.dayId);
@@ -1032,6 +1070,17 @@ class EditItemModal extends Modal {
       (value) => (this.detail = value),
     );
     if (this.item.kind === "point") {
+      textSetting(this.contentEl, this.plugin.t("field.originalName"), this.originalName, (value) => (this.originalName = value), "text", this.plugin.t("desc.placeNames"));
+      textSetting(this.contentEl, this.plugin.t("field.localizedName"), this.localizedName, (value) => (this.localizedName = value));
+      textSetting(this.contentEl, this.plugin.t("field.localizedLanguage"), this.localizedLanguage, (value) => (this.localizedLanguage = value));
+      dropdownSetting(
+        this.contentEl,
+        this.plugin.t("field.nameDisplay"),
+        nameDisplayPreferences,
+        this.nameDisplayPreference,
+        (value) => (this.nameDisplayPreference = value as PlaceNameDisplayPreference),
+        (value) => this.plugin.t(`nameDisplay.${value}` as TranslationKey),
+      );
       textSetting(
         this.contentEl,
         this.plugin.t("field.latitude"),
@@ -1152,6 +1201,24 @@ class EditItemModal extends Modal {
     this.item.updatedAt = nowIso();
     if (this.item.kind === "point") {
       this.item.place.customName = this.title.trim();
+      this.item.place.name = this.originalName.trim() || this.localizedName.trim() || this.item.place.name || this.title.trim();
+      if (this.originalName.trim()) this.item.place.originalName = { text: this.originalName.trim() };
+      else delete this.item.place.originalName;
+      const otherLocalizedNames = (this.item.place.localizedNames ?? []).filter(
+        (name) => name.languageCode !== this.localizedLanguage.trim() || name.provider !== "google-places",
+      );
+      if (this.localizedName.trim() && this.localizedLanguage.trim()) {
+        this.item.place.localizedNames = [
+          ...otherLocalizedNames,
+          { text: this.localizedName.trim(), languageCode: this.localizedLanguage.trim(), provider: "google-places" },
+        ];
+      } else if (otherLocalizedNames.length) this.item.place.localizedNames = otherLocalizedNames;
+      else delete this.item.place.localizedNames;
+      this.item.place.nameDisplayPreference = this.nameDisplayPreference;
+      this.item.title = placeDisplayName(
+        this.item.place,
+        resolveLanguage(this.plugin.settings.language, globalThis.navigator?.language ?? "en"),
+      );
       this.item.place.address = this.detail.trim();
       const latitude = optionalNumber(this.latitude);
       const longitude = optionalNumber(this.longitude);
@@ -1503,6 +1570,8 @@ const transportModes = [
   "flight",
   "other",
 ] as const;
+
+const nameDisplayPreferences: PlaceNameDisplayPreference[] = ["original", "localized", "custom"];
 
 const tripStatuses: Trip["status"][] = ["idea", "planning", "ready", "traveling", "completed", "archived"];
 

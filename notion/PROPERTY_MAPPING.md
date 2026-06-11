@@ -34,6 +34,10 @@ Use `blueprint.json` as the complete contract. Important conversions:
 - Keep all canonical ID properties as **Text**.
 - Use Timeline `Name` as the user's custom display name and `Place name` as
   the searchable canonical place name.
+- Use `Original name` for the local-script name, `Google translated name` and
+  `Google name language` for one visible provider translation, and
+  `Name display` to choose `original`, `localized`, or `custom`. Hidden
+  `Travelog JSON` keeps every additional language for lossless sync.
 - Enter Timeline `Opens` and `Closes` as 24-hour local times in exact `HH:mm`
   format, such as `09:30`. Both must be filled or both left blank. Notion has
   no date-free time property, so these remain text properties; Travelog import

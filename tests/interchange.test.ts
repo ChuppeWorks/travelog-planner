@@ -50,6 +50,30 @@ test("visible Notion fields override preserved raw JSON", async () => {
   }
 });
 
+test("Notion exposes one translated place name while preserving canonical name choices", async () => {
+  const dataset = await sample();
+  const point = dataset.timelineItems.find((item) => item.id === "point_demo_station");
+  if (point?.kind === "point") {
+    point.place.originalName = { text: "京都駅", languageCode: "ja" };
+    point.place.localizedNames = [{ text: "Kyoto Station", languageCode: "en", provider: "google-places" }];
+    point.place.nameDisplayPreference = "original";
+  }
+  const tables = datasetToNotionTables(dataset);
+  const rows = parseCsv(tables.Timeline);
+  assert.equal(rows[0]!["Original name"], "京都駅");
+  assert.equal(rows[0]!["Google translated name"], "Kyoto Station");
+  assert.equal(rows[0]!["Name display"], "original");
+
+  const imported = notionTablesToDataset(tables);
+  const importedPoint = imported.timelineItems.find((item) => item.id === "point_demo_station");
+  assert.equal(importedPoint?.kind, "point");
+  if (importedPoint?.kind === "point") {
+    assert.equal(importedPoint.place.originalName?.text, "京都駅");
+    assert.equal(importedPoint.place.localizedNames?.[0]?.languageCode, "en");
+    assert.equal(importedPoint.place.nameDisplayPreference, "original");
+  }
+});
+
 test("clearing a visible Notion field removes the preserved raw value", async () => {
   const dataset = await sample();
   const pointWithHours = dataset.timelineItems.find((item) => item.id === "point_demo_station");

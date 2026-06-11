@@ -78,6 +78,29 @@
       "required": ["name"],
       "properties": {
         "name": { "type": "string" },
+        "originalName": {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": { "type": "string" },
+            "languageCode": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "localizedNames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["text", "languageCode"],
+            "properties": {
+              "text": { "type": "string" },
+              "languageCode": { "type": "string" },
+              "provider": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "nameDisplayPreference": { "enum": ["original", "localized", "custom"] },
         "customName": { "type": "string" },
         "address": { "type": "string" },
         "openingPeriods": {

@@ -5,6 +5,7 @@ import {
   applyRouteDelay,
   freezeTripBaseline,
   moveTravelDay,
+  placeDisplayName,
   scheduleWarnings,
   shiftItemAndFollowing,
   syncTripDateRange,
@@ -23,6 +24,22 @@ test("example dataset is valid", async () => {
   const result = validateDataset(await sample());
   assert.deepEqual(result.errors, []);
   assert.equal(result.valid, true);
+});
+
+test("place names preserve original, translated, and custom display choices", () => {
+  const place = {
+    name: "Kiyomizu-dera",
+    originalName: { text: "清水寺", languageCode: "ja" },
+    localizedNames: [
+      { text: "Kiyomizu-dera", languageCode: "en", provider: "google-places" },
+      { text: "기요미즈데라", languageCode: "ko", provider: "google-places" },
+    ],
+    nameDisplayPreference: "localized" as const,
+    customName: "Morning temple",
+  };
+  assert.equal(placeDisplayName(place, "ko-KR"), "기요미즈데라");
+  assert.equal(placeDisplayName({ ...place, nameDisplayPreference: "original" }, "ko"), "清水寺");
+  assert.equal(placeDisplayName({ ...place, nameDisplayPreference: "custom" }, "ko"), "Morning temple");
 });
 
 test("freezing baseline preserves it while a later shift changes current plan", async () => {

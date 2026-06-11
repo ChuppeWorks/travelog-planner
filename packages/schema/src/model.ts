@@ -3,6 +3,7 @@ import {
   type Id,
   type ISODateTime,
   type PlanChange,
+  type PlaceDetails,
   type ScheduleWarning,
   type TimelineItem,
   type TravelDay,
@@ -53,6 +54,20 @@ export function nowIso(): ISODateTime {
 
 export function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+export function placeDisplayName(place: PlaceDetails, locale = ""): string {
+  if (place.nameDisplayPreference === "custom" && place.customName?.trim()) return place.customName.trim();
+  if (place.nameDisplayPreference === "original" && place.originalName?.text.trim()) return place.originalName.text.trim();
+  if (place.nameDisplayPreference === "localized") {
+    const normalized = locale.toLowerCase();
+    const localized = place.localizedNames?.find((name) => name.languageCode.toLowerCase() === normalized)
+      ?? place.localizedNames?.find((name) => normalized.startsWith(`${name.languageCode.toLowerCase()}-`))
+      ?? place.localizedNames?.find((name) => name.languageCode.toLowerCase().startsWith(`${normalized}-`))
+      ?? place.localizedNames?.[0];
+    if (localized?.text.trim()) return localized.text.trim();
+  }
+  return place.originalName?.text.trim() || place.customName?.trim() || place.name;
 }
 
 export function freezeTripBaseline(dataset: TravelogDataset, tripId: Id): number {

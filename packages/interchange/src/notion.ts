@@ -223,7 +223,9 @@ function parseTimeline(row: CsvRow, dayDates: ReadonlyMap<string, string>): Time
     ...common, kind: "point", place: {
       ...place,
       name: row["Place name"] || (base.kind === "point" && base.place ? base.place.name : row.Name!),
-      ...(row["Original name"] ? { originalName: { text: row["Original name"] } } : {}),
+      ...(row["Original name"] ? {
+        originalName: originalNameFromNotion(row["Original name"], base.kind === "point" ? base.place : undefined),
+      } : {}),
       ...(localizedNames.length ? { localizedNames } : {}),
       ...(isNameDisplayPreference(row["Name display"]) ? { nameDisplayPreference: row["Name display"] } : {}),
       ...(row.Name && (base.kind === "point" && base.place && (base.place.customName || row.Name !== base.title))
@@ -273,6 +275,10 @@ function number(value: string | undefined): number { return Number(value || 0); 
 function split(value: string | undefined): string[] { return (value ?? "").split(/\s*\|\s*/).filter(Boolean); }
 function fromRaw<T>(row: CsvRow): T { return parseJson<T>(row["Travelog JSON"], {} as T); }
 function parseJson<T>(value: string | undefined, fallback: T): T { try { return value ? JSON.parse(value) as T : fallback; } catch { return fallback; } }
+
+function originalNameFromNotion(text: string, basePlace: PlaceDetails | undefined): NonNullable<PlaceDetails["originalName"]> {
+  return basePlace?.originalName?.text === text ? { ...basePlace.originalName, text } : { text };
+}
 
 function parseNotionOpeningHours(
   row: CsvRow,

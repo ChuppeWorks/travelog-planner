@@ -102,6 +102,12 @@
       },
       "place": {
         "name": "Gion",
+        "originalName": { "text": "祇園", "languageCode": "ja", "provider": "google-places" },
+        "localizedNames": [
+          { "text": "Gion", "languageCode": "en", "provider": "google-places" }
+        ],
+        "customName": "Gion walk",
+        "nameDisplayPreference": "original",
         "address": "Gionmachi, Higashiyama Ward, Kyoto",
         "coordinates": { "latitude": 35.003707, "longitude": 135.778722 }
       },

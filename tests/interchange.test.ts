@@ -54,7 +54,7 @@ test("Notion exposes one translated place name while preserving canonical name c
   const dataset = await sample();
   const point = dataset.timelineItems.find((item) => item.id === "point_demo_station");
   if (point?.kind === "point") {
-    point.place.originalName = { text: "京都駅", languageCode: "ja" };
+    point.place.originalName = { text: "京都駅", languageCode: "ja", provider: "google-places" };
     point.place.localizedNames = [{ text: "Kyoto Station", languageCode: "en", provider: "google-places" }];
     point.place.nameDisplayPreference = "original";
   }
@@ -69,6 +69,8 @@ test("Notion exposes one translated place name while preserving canonical name c
   assert.equal(importedPoint?.kind, "point");
   if (importedPoint?.kind === "point") {
     assert.equal(importedPoint.place.originalName?.text, "京都駅");
+    assert.equal(importedPoint.place.originalName?.languageCode, "ja");
+    assert.equal(importedPoint.place.originalName?.provider, "google-places");
     assert.equal(importedPoint.place.localizedNames?.[0]?.languageCode, "en");
     assert.equal(importedPoint.place.nameDisplayPreference, "original");
   }

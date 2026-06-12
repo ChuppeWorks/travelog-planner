@@ -64,7 +64,7 @@ export interface Money {
 }
 
 export interface ProviderReference {
-  provider: "google-places" | "openstreetmap" | "apple-maps" | "transit" | "other";
+  provider: "google-places" | "google-routes" | "openstreetmap" | "apple-maps" | "transit" | "other";
   id: string;
   url?: string;
 }
@@ -85,7 +85,7 @@ export type PlaceNameDisplayPreference = "original" | "localized" | "custom";
 
 export interface PlaceDetails {
   name: string;
-  originalName?: { text: string; languageCode?: string };
+  originalName?: { text: string; languageCode?: string; provider?: string };
   localizedNames?: LocalizedPlaceName[];
   nameDisplayPreference?: PlaceNameDisplayPreference;
   customName?: string;

@@ -26,6 +26,94 @@ test("example dataset is valid", async () => {
   assert.equal(result.valid, true);
 });
 
+test("timeline items require only the details selected by their kind", async () => {
+  const dataset = await sample();
+  const point = dataset.timelineItems.find((item) => item.kind === "point") as unknown as Record<string, unknown>;
+  const route = dataset.timelineItems.find((item) => item.kind === "route") as unknown as Record<string, unknown>;
+  delete point.place;
+  point.route = { mode: "walk" };
+  delete route.route;
+  route.place = { name: "Wrong details" };
+
+  const errors = validateDataset(dataset).errors;
+  assert.ok(errors.some((error) => error.includes("needs place details")));
+  assert.ok(errors.some((error) => error.includes("must not include route details")));
+  assert.ok(errors.some((error) => error.includes("needs route details")));
+  assert.ok(errors.some((error) => error.includes("must not include place details")));
+});
+
+test("coordinates and provider references follow the canonical contract", async () => {
+  const valid = await sample();
+  const validPoint = valid.timelineItems.find((item) => item.kind === "point");
+  const validRoute = valid.timelineItems.find((item) => item.kind === "route");
+  if (validPoint?.kind === "point") {
+    validPoint.place.providerRefs = [{ provider: "google-places", id: "places/kyoto-station" }];
+  }
+  if (validRoute?.kind === "route") {
+    validRoute.route.providerRefs = [{ provider: "transit", id: "kyoto-city-bus-206" }];
+  }
+  assert.equal(validateDataset(valid).valid, true);
+
+  const invalid = await sample();
+  const invalidPoint = invalid.timelineItems.find((item) => item.kind === "point");
+  if (invalidPoint?.kind === "point") {
+    invalidPoint.place.coordinates = { latitude: 91, longitude: 181 };
+    invalidPoint.place.providerRefs = [{ provider: "unknown" as "other", id: "" }];
+  }
+  const errors = validateDataset(invalid).errors;
+  assert.ok(errors.some((error) => error.includes("coordinates need latitude")));
+  assert.ok(errors.some((error) => error.includes("providerRefs entry 1 is invalid")));
+});
+
+test("canonical entity IDs are unique across trips, days, items, checklists, and expenses", async () => {
+  for (const key of ["trips", "days", "timelineItems", "checklistItems", "expenses"] as const) {
+    const dataset = await sample();
+    dataset[key].push(structuredClone(dataset[key][0]!) as never);
+    const errors = validateDataset(dataset).errors;
+    assert.ok(errors.some((error) => error === `Duplicate id: ${dataset[key][0]!.id}`), key);
+  }
+});
+
+test("common validation rejects broken canonical references", async () => {
+  const cases: Array<(dataset: TravelogDataset) => void> = [
+    (dataset) => { dataset.days[0]!.tripId = "trip_missing"; },
+    (dataset) => { dataset.timelineItems[0]!.dayId = "day_missing"; },
+    (dataset) => { dataset.checklistItems[0]!.timelineItemId = "item_missing"; },
+    (dataset) => { dataset.expenses[0]!.tripId = "trip_missing"; },
+    (dataset) => {
+      const route = dataset.timelineItems.find((item) => item.kind === "route");
+      if (route?.kind === "route") route.route.toPointId = "point_missing";
+    },
+  ];
+
+  for (const mutate of cases) {
+    const dataset = await sample();
+    mutate(dataset);
+    assert.ok(validateDataset(dataset).errors.some((error) => error.includes("references missing")));
+  }
+});
+
+test("common validation rejects references that cross trip or day ownership", async () => {
+  const dataset = await sample();
+  dataset.trips.push({ ...structuredClone(dataset.trips[0]!), id: "trip_other" });
+  dataset.days.push({ ...structuredClone(dataset.days[1]!), id: "day_other", tripId: "trip_other" });
+  dataset.timelineItems.push({
+    ...structuredClone(dataset.timelineItems[0]!),
+    id: "point_other",
+    tripId: "trip_other",
+    dayId: "day_other",
+  });
+  dataset.checklistItems[0]!.dayId = "day_other";
+  dataset.expenses[0]!.timelineItemId = "point_other";
+  const route = dataset.timelineItems.find((item) => item.kind === "route");
+  if (route?.kind === "route") route.route.toPointId = "point_other";
+
+  const errors = validateDataset(dataset).errors;
+  assert.ok(errors.some((error) => error.includes("Checklist item check_demo_card references day day_other from another trip")));
+  assert.ok(errors.some((error) => error.includes("Expense expense_demo_bus references timeline item point_other from another trip")));
+  assert.ok(errors.some((error) => error.includes("Route route_demo_bus references point point_other from another trip")));
+});
+
 test("place names preserve original, translated, and custom display choices", () => {
   const place = {
     name: "Kiyomizu-dera",

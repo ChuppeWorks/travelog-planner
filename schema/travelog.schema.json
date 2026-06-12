@@ -73,6 +73,25 @@
       },
       "additionalProperties": true
     },
+    "coordinates": {
+      "type": "object",
+      "required": ["latitude", "longitude"],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 }
+      },
+      "additionalProperties": true
+    },
+    "providerReference": {
+      "type": "object",
+      "required": ["provider", "id"],
+      "properties": {
+        "provider": { "enum": ["google-places", "google-routes", "openstreetmap", "apple-maps", "transit", "other"] },
+        "id": { "type": "string", "minLength": 1 },
+        "url": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
     "place": {
       "type": "object",
       "required": ["name"],
@@ -83,7 +102,8 @@
           "required": ["text"],
           "properties": {
             "text": { "type": "string" },
-            "languageCode": { "type": "string" }
+            "languageCode": { "type": "string" },
+            "provider": { "type": "string" }
           },
           "additionalProperties": true
         },
@@ -103,6 +123,11 @@
         "nameDisplayPreference": { "enum": ["original", "localized", "custom"] },
         "customName": { "type": "string" },
         "address": { "type": "string" },
+        "coordinates": { "$ref": "#/$defs/coordinates" },
+        "providerRefs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/providerReference" }
+        },
         "openingPeriods": {
           "type": "array",
           "items": { "$ref": "#/$defs/openingPeriod" }
@@ -123,7 +148,11 @@
         "operator": { "type": "string" },
         "delayMinutes": { "type": "number" },
         "fare": { "$ref": "#/$defs/money" },
-        "reservationRef": { "type": "string" }
+        "reservationRef": { "type": "string" },
+        "providerRefs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/providerReference" }
+        }
       },
       "additionalProperties": true
     },
@@ -162,6 +191,18 @@
     "timelineItem": {
       "type": "object",
       "required": ["id", "tripId", "dayId", "kind", "sortOrder", "title", "schedule", "createdAt", "updatedAt"],
+      "oneOf": [
+        {
+          "required": ["place"],
+          "properties": { "kind": { "const": "point" } },
+          "not": { "required": ["route"] }
+        },
+        {
+          "required": ["route"],
+          "properties": { "kind": { "const": "route" } },
+          "not": { "required": ["place"] }
+        }
+      ],
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "tripId": { "$ref": "#/$defs/id" },

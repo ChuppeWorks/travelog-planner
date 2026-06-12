@@ -1025,7 +1025,7 @@ class EditItemModal extends Modal {
       .map((candidate) => candidate.label)
       .join(", ");
     if (item.kind === "point") {
-      this.originalName = item.place.originalName?.text ?? item.place.name;
+      this.originalName = item.place.originalName?.text ?? "";
       const localized = item.place.localizedNames?.find((name) => name.provider === "google-places") ?? item.place.localizedNames?.[0];
       this.localizedName = localized?.text ?? "";
       this.localizedLanguage = localized?.languageCode ?? resolveLanguage(plugin.settings.language, globalThis.navigator?.language ?? "en");
@@ -1202,8 +1202,12 @@ class EditItemModal extends Modal {
     if (this.item.kind === "point") {
       this.item.place.customName = this.title.trim();
       this.item.place.name = this.originalName.trim() || this.localizedName.trim() || this.item.place.name || this.title.trim();
-      if (this.originalName.trim()) this.item.place.originalName = { text: this.originalName.trim() };
-      else delete this.item.place.originalName;
+      if (this.originalName.trim()) {
+        const existingOriginalName = this.item.place.originalName;
+        this.item.place.originalName = existingOriginalName?.text === this.originalName.trim()
+          ? existingOriginalName
+          : { text: this.originalName.trim() };
+      } else delete this.item.place.originalName;
       const otherLocalizedNames = (this.item.place.localizedNames ?? []).filter(
         (name) => name.languageCode !== this.localizedLanguage.trim() || name.provider !== "google-places",
       );

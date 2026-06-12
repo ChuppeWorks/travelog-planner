@@ -52,8 +52,9 @@ Places preserve several names instead of overwriting one string:
 
 Google Places returns the requested-language `displayName`, but not a complete
 authoritative original-and-translated name list in one response. Travelog
-therefore keeps the search text as an editable original-name candidate and
-never deletes other stored names when the display choice changes.
+therefore keeps the search text only as a search fallback and never promotes it
+to `originalName` without user confirmation. Changing the display choice never
+deletes other stored names.
 
 ## Compatibility rules
 
